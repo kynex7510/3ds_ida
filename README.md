@@ -1,2 +1,6 @@
 # 3ds_ida
-IDA Pro scripts for reverse engineering 3DS roms
+IDA Pro 7.6+ scripts for reverse engineering 3DS userland code.
+
+## How to
+
+1. Extract `code.bin' from your rom.
