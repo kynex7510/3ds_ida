@@ -18,12 +18,12 @@ enum Result {
     GSP_ALREADY_DONE = 0x00002BEB,
     OS_ALREADY_INITIALIZED = 0x08A01BF9,
     SRV_ALREADY_INITIALIZED = 0x08A067F9,
-    OS_OUT_OF_MEM = 0xD8601837,
     GSP_BUSY = 0xC8402BF0,
     APT_ALREADY_EXISTS = 0xC8A0CFFC,
     APT_NO_DATA = 0xC8A0CFEF,
     OS_SESSION_CLOSED = 0xC920181A,
     GSP_PERMANENT = 0xD8202A06,
+	OS_OUT_OF_MEM = 0xD8601837,
     GSP_INVALID_STATE_516 = 0xD8A02A04,
     GSP_INVALID_STATE_517 = 0xD8A02A05,
     SRV_NOT_INITIALIZED = 0xD8A067F8,
@@ -120,6 +120,19 @@ struct PageInfo {
     u32 flags;
 };
 
+enum ResourceLimitType {
+	RESLIMIT_PRIORITY       = 0,
+	RESLIMIT_COMMIT         = 1,
+	RESLIMIT_THREAD         = 2,
+	RESLIMIT_EVENT          = 3,
+	RESLIMIT_MUTEX          = 4,
+	RESLIMIT_SEMAPHORE      = 5,
+	RESLIMIT_TIMER          = 6,
+	RESLIMIT_SHAREDMEMORY   = 7,
+	RESLIMIT_ADDRESSARBITER = 8,
+	RESLIMIT_CPUTIME        = 9,
+};
+
 enum UserBreakType {
 	USERBREAK_PANIC = 0,
 	USERBREAK_ASSERT = 1,
@@ -169,37 +182,192 @@ enum ResetType {
 	RESET_PULSE   = 2,
 };
 
-typedef u8 APT_AppletAttr;
-
-enum NS_APPID {
-	APPID_NONE = 0,
-	APPID_HOMEMENU = 0x101,
-	APPID_CAMERA = 0x110,
-	APPID_FRIENDS_LIST = 0x112,
-	APPID_GAME_NOTES = 0x113,
-	APPID_WEB = 0x114,
-	APPID_INSTRUCTION_MANUAL = 0x115,
-	APPID_NOTIFICATIONS = 0x116,
-	APPID_MIIVERSE = 0x117,
-	APPID_MIIVERSE_POSTING = 0x118,
-	APPID_AMIIBO_SETTINGS = 0x119,
-	APPID_APPLICATION = 0x300,
-	APPID_ESHOP = 0x301,
-	APPID_SOFTWARE_KEYBOARD = 0x401,
-	APPID_APPLETED = 0x402,
-	APPID_PNOTE_AP = 0x404,
-	APPID_SNOTE_AP = 0x405,
-	APPID_ERROR = 0x406,
-	APPID_MINT = 0x407,
-	APPID_EXTRAPAD = 0x408,
-	APPID_MEMOLIB = 0x409,
+struct AttachProcessEvent {
+	u64 program_id;
+	char process_name[8];
+	u32 process_id;
+	u32 other_flags;
 };
 
-enum APT_AppletPos {
-	APTPOS_NONE     = -1,
-	APTPOS_APP      = 0,
-	APTPOS_APPLIB   = 1,
-	APTPOS_SYS      = 2,
-	APTPOS_SYSLIB   = 3,
-	APTPOS_RESIDENT = 4,
+struct AttachThreadEvent {
+	u32 creator_thread_id;
+	u32 thread_local_storage;
+	u32 entry_point;
+};
+
+enum ExitThreadEventReason {
+	EXITTHREAD_EVENT_EXIT = 0,
+	EXITTHREAD_EVENT_TERMINATE = 1,
+	EXITTHREAD_EVENT_EXIT_PROCESS = 2,
+	EXITTHREAD_EVENT_TERMINATE_PROCESS = 3,
+};
+
+struct ExitThreadEvent {
+	ExitThreadEventReason reason;
+};
+
+enum ExitProcessEventReason {
+	EXITPROCESS_EVENT_EXIT = 0,
+	EXITPROCESS_EVENT_TERMINATE = 1,
+	EXITPROCESS_EVENT_DEBUG_TERMINATE = 2,
+};
+
+struct ExitProcessEvent {
+	ExitProcessEventReason reason;
+};
+
+struct FaultExceptionEvent {
+	u32 fault_information;
+};
+
+enum StopPointType {
+	STOPPOINT_SVC_FF        = 0,
+	STOPPOINT_BREAKPOINT    = 1,
+	STOPPOINT_WATCHPOINT    = 2,
+};
+
+struct StopPointExceptionEvent {
+	StopPointType type;
+	u32 fault_information;
+};
+
+struct UserBreakExceptionEvent {
+	UserBreakType type;
+	u32 croInfo;
+	u32 croInfoSize;
+};
+
+struct DebuggerBreakExceptionEvent {
+	s32 thread_ids[4];
+};
+
+enum ExceptionEventType {
+	EXCEVENT_UNDEFINED_INSTRUCTION = 0,
+	EXCEVENT_PREFETCH_ABORT        = 1,
+	EXCEVENT_DATA_ABORT            = 2,
+	EXCEVENT_UNALIGNED_DATA_ACCESS = 3,
+	EXCEVENT_ATTACH_BREAK          = 4,
+	EXCEVENT_STOP_POINT            = 5,
+	EXCEVENT_USER_BREAK            = 6,
+	EXCEVENT_DEBUGGER_BREAK        = 7,
+	EXCEVENT_UNDEFINED_SYSCALL     = 8,
+};
+
+struct ExceptionEvent {
+	ExceptionEventType type;
+	u32 address;
+	union {
+		FaultExceptionEvent fault;
+		StopPointExceptionEvent stop_point;
+		UserBreakExceptionEvent user_break;
+		DebuggerBreakExceptionEvent debugger_break;
+	};
+};
+
+struct ScheduleInOutEvent {
+	u64 clock_tick;
+};
+
+struct SyscallInOutEvent {
+	u64 clock_tick;
+	u32 syscall;
+};
+
+struct OutputStringEvent {
+	u32 string_addr;
+	u32 string_size;
+};
+
+struct MapEvent {
+	u32 mapped_addr;
+	u32 mapped_size;
+	MemPerm memperm;
+	MemState memstate;
+} MapEvent;
+
+enum DebugEventType {
+	DBGEVENT_ATTACH_PROCESS = 0,
+	DBGEVENT_ATTACH_THREAD  = 1,
+	DBGEVENT_EXIT_THREAD    = 2,
+	DBGEVENT_EXIT_PROCESS   = 3,
+	DBGEVENT_EXCEPTION      = 4,
+	DBGEVENT_DLL_LOAD       = 5,
+	DBGEVENT_DLL_UNLOAD     = 6,
+	DBGEVENT_SCHEDULE_IN    = 7,
+	DBGEVENT_SCHEDULE_OUT   = 8,
+	DBGEVENT_SYSCALL_IN     = 9,
+	DBGEVENT_SYSCALL_OUT    = 10,
+	DBGEVENT_OUTPUT_STRING  = 11,
+	DBGEVENT_MAP            = 12,
+};
+
+struct DebugEventInfo {
+	DebugEventType type;
+	u32 thread_id;
+	u32 flags;
+	u8 remnants[4];
+	union {
+		AttachProcessEvent attach_process;
+		AttachThreadEvent attach_thread;
+		ExitThreadEvent exit_thread;
+		ExitProcessEvent exit_process;
+		ExceptionEvent exception;
+		ScheduleInOutEvent scheduler;
+		SyscallInOutEvent syscall;
+		OutputStringEvent output_string;
+		MapEvent map;
+	};
+} DebugEventInfo;
+
+enum DebugFlags {
+	DBG_INHIBIT_USER_CPU_EXCEPTION_HANDLERS = 0x01,
+	DBG_SIGNAL_FAULT_EXCEPTION_EVENTS = 0x02,
+	DBG_SIGNAL_SCHEDULE_EVENTS = 0x04,
+	DBG_SIGNAL_SYSCALL_EVENTS = 0x08,
+	DBG_SIGNAL_MAP_EVENTS = 0x10,
+};
+
+enum ThreadContextControlFlags {
+	THREADCONTEXT_CONTROL_CPU_GPRS  = 0x01,
+	THREADCONTEXT_CONTROL_CPU_SPRS  = 0x02,
+	THREADCONTEXT_CONTROL_CPU_REGS  = THREADCONTEXT_CONTROL_CPU_GPRS | THREADCONTEXT_CONTROL_CPU_SPRS,
+
+	THREADCONTEXT_CONTROL_FPU_GPRS  = 0x04,
+	THREADCONTEXT_CONTROL_FPU_SPRS  = 0x08,
+	THREADCONTEXT_CONTROL_FPU_REGS  = THREADCONTEXT_CONTROL_FPU_GPRS | THREADCONTEXT_CONTROL_FPU_SPRS,
+
+	THREADCONTEXT_CONTROL_ALL = THREADCONTEXT_CONTROL_CPU_REGS | THREADCONTEXT_CONTROL_FPU_REGS,
+} ThreadContextControlFlags;
+
+struct CpuRegisters {
+	u32 r[13];
+	u32 sp;
+	u32 lr;
+	u32 pc;
+	u32 cpsr;
+};
+
+struct FpuRegisters {
+	union {
+		struct PACKED { double d[16]; };
+		float  s[32];
+	};
+	u32 fpscr;
+	u32 fpexc;
+};
+
+struct ThreadContext {
+	CpuRegisters cpu_registers;
+	FpuRegisters fpu_registers;
+};
+
+struct SvcControlMemoryResult {
+	Result result; // r0
+	u32 addr_out; // r1
+};
+
+struct SvcQueryMemoryResult {
+	Result result; // r0
+	MemInfo memInfo; // r1-r4
+	PageInfo pageInfo; // r5
 };

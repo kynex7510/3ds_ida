@@ -1,6 +1,6 @@
 __pycache__
 .vscode
 .env
-/plugins/find_syscalls.py
 /plugins/fix_decomp.py
 /plugins/load_crs_syms.py
+sys_types.txt
