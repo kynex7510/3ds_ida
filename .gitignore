@@ -1,6 +1,4 @@
 __pycache__
 .vscode
 .env
-/plugins/fix_decomp.py
 /plugins/load_crs_syms.py
-sys_types.txt

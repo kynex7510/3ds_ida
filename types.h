@@ -182,6 +182,18 @@ enum ResetType {
 	RESET_PULSE   = 2,
 };
 
+enum PerfCounterOperation {
+	PERFCOUNTEROP_ENABLE = 0,
+	PERFCOUNTEROP_DISABLE = 1,
+	PERFCOUNTEROP_GET_VALUE = 2,
+	PERFCOUNTEROP_SET_VALUE = 3,
+	PERFCOUNTEROP_GET_OVERFLOW_FLAGS = 4,
+	PERFCOUNTEROP_RESET = 5,
+	PERFCOUNTEROP_GET_EVENT = 6,
+	PERFCOUNTEROP_SET_EVENT = 7,
+	PERFCOUNTEROP_SET_VIRTUAL_COUNTER_ENABLED = 8,
+};
+
 struct AttachProcessEvent {
 	u64 program_id;
 	char process_name[8];
@@ -327,6 +339,13 @@ enum DebugFlags {
 	DBG_SIGNAL_MAP_EVENTS = 0x10,
 };
 
+enum DebugThreadParameter {
+	DBGTHREAD_PARAMETER_PRIORITY = 0,
+	DBGTHREAD_PARAMETER_SCHEDULING_MASK_LOW = 1,
+	DBGTHREAD_PARAMETER_CPU_IDEAL = 2,
+	DBGTHREAD_PARAMETER_CPU_CREATOR = 3,
+};
+
 enum ThreadContextControlFlags {
 	THREADCONTEXT_CONTROL_CPU_GPRS  = 0x01,
 	THREADCONTEXT_CONTROL_CPU_SPRS  = 0x02,
@@ -361,13 +380,57 @@ struct ThreadContext {
 	FpuRegisters fpu_registers;
 };
 
-struct SvcControlMemoryResult {
-	Result result; // r0
-	u32 addr_out; // r1
+struct CodeSetHeader {
+	u8 name[8];
+	u16 version;
+	u16 padding[3];
+	u32 text_addr;
+	u32 text_size;
+	u32 ro_addr;
+	u32 ro_size;
+	u32 rw_addr;
+	u32 rw_size;
+	u32 text_size_total;
+	u32 ro_size_total;
+	u32 rw_size_total;
+	u32 padding2;
+	u64 program_id;
 };
 
-struct SvcQueryMemoryResult {
+struct SvcResult8 {
 	Result result; // r0
-	MemInfo memInfo; // r1-r4
-	PageInfo pageInfo; // r5
+	u8 value; // r1
+};
+
+struct SvcResult32 {
+	Result result; // r0
+	u32 value; // r1
+};
+
+struct SvcResult64 {
+	Result result; // r0
+	s64 value; // r1-r2
+};
+
+struct SvcResultHandle {
+	Result result; // r0
+	Handle handle; // r1
+};
+
+struct SvcResultHandlePair {
+	Result result; // r0
+	Handle handle1; // r1
+	Handle handle2; // r2
+};
+
+struct SvcResultQueryMemory {
+	Result result; // r0
+	MemInfo mem_info; // r1-r4
+	PageInfo page_info; // r5
+};
+
+struct SvcResultGetDebugThreadParam {
+	Result result; // r0
+	s64 unused; // r1 - r2
+	u32 out; // r3
 };
