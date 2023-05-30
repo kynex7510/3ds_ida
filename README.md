@@ -4,15 +4,15 @@
 
 ## Setup
 
-[Python 3+](https://www.python.org/) is required.
+[Python 3.4+](https://www.python.org/) is required.
 
 ### Loader
 
 Copy `ctru_loader.py` in `{IDA_PATH}/loaders`. The loader supports the following formats:
 
-- Raw: the file must be named `code.bin` and it should not be compressed; an external exheader file is required, else the user will be asked to provide any information.
-- ~~ExeFS: the file must end with the `exefs` extension and must contain a `.code` section; an external exheader file is required, else the user will be asked to provide any information.~~
-- ~~CXI~~.
+- Raw: the binary must be named `code.bin`. An external exheader binary is required, else the user will be asked to provide any information.
+- ExeFS: the binary name must end with the `exefs` extension and must contain a `.code` file. An external exheader binary is required, else the user will be asked to provide any information.
+- CXI: the binary must be decrypted and it must contain an ExeFS with a `.code` file.
 - ~~CIA~~.
 - ~~CRO~~.
 
