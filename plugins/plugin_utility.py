@@ -9,6 +9,8 @@ import ida_funcs
 import ida_segment
 import ida_bytes
 import ida_name
+import ida_segregs
+import ida_idp
 
 # Globals
 
@@ -240,7 +242,7 @@ SYSCALL_TYPES = {
 
 
 def _is_thumb(addr):
-    return False  # TODO
+    return ida_segregs.get_sreg(addr, ida_idp.str2reg("T")) == 1
 
 # Utility
 
