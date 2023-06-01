@@ -63,10 +63,6 @@ def blz_decompress(input_data):
     return bytes(buffer)
 
 
-def align_up(val, align):
-    return val + (align - 1) & ~(align - 1)
-
-
 def read_bytes(f, off, size):
     f.seek(off)
     b = f.read(size)
@@ -92,6 +88,8 @@ def add_segment(start, size, name, perms) -> None:
         sclass = "CODE"
     elif perms == ida_segment.SEGPERM_READ:
         sclass = "CONST"
+    elif name == ".bss":
+        sclass = "BSS"
     else:
         sclass = "DATA"
     if not ida_segment.add_segm(0, start, start + size, name, sclass):
@@ -128,6 +126,7 @@ class CodeInfo:
         self._rodata_size = 0
         self._data_base = 0
         self._data_size = 0
+        self._bss_size = 0
 
     @staticmethod
     def load_from_file(f, off):
@@ -145,15 +144,7 @@ class CodeInfo:
         cinfo._rodata_size = read_dword(f, off + 0x28)
         cinfo._data_base = read_dword(f, off + 0x30)
         cinfo._data_size = read_dword(f, off + 0x38)
-
-        # Load ioregs info.
-        # TODO
-
-        # Align to page if not a sysmodule.
-        if not cinfo.is_sysmodule():
-            cinfo._text_size = align_up(cinfo._text_size, PAGE_SIZE)
-            cinfo._rodata_size = align_up(cinfo._rodata_size, PAGE_SIZE)
-            cinfo._data_size = align_up(cinfo._data_size, PAGE_SIZE)
+        cinfo._bss_size = read_dword(f, off + 0x3C)
 
         return cinfo
 
@@ -174,6 +165,8 @@ class CodeInfo:
             0, "Enter the base address for the .data section:")
         cinfo._data_size = ida_kernwin.ask_long(
             0x1000 if cinfo._data_base else 0, "Enter the size for the .data section:")
+        cinfo._bss_size = ida_kernwin.ask_long(
+            0x1000, "Enter the size for the .bss section:")
         return cinfo
 
     def valid(self):
@@ -214,6 +207,28 @@ class CodeInfo:
 
     def has_data(self):
         return self._data_base and self._data_size
+
+    def get_bss_base(self):
+        base = 0
+        size = 0
+
+        if self.has_data():
+            base = self.get_data_base()
+            size = self.get_data_size()
+        elif self.has_rodata():
+            base = self.get_rodata_base()
+            size = self.get_rodata_size()
+        else:
+            base = self.get_text_base()
+            size = self.get_text_size()
+
+        return base + size
+
+    def get_bss_size(self):
+        return self._bss_size
+
+    def has_bss(self):
+        return self._bss_size
 
 # FileFormat
 
@@ -285,8 +300,9 @@ def setup_database(cinfo, code_bin_data):
                                    rel_data_base + cinfo.get_data_size()]
         ida_bytes.put_bytes(cinfo.get_data_base(), data_bytes)
 
-    # Add ioregs.
-    # TODO
+    if cinfo.has_bss():
+        add_segment(cinfo.get_bss_base(), cinfo.get_bss_size(), ".bss",
+                    ida_segment.SEGPERM_READ | ida_segment.SEGPERM_WRITE)
 
     # Set entrypoint.
     ida_entry.add_entry(cinfo.get_text_base(),
