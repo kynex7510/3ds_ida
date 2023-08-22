@@ -1,5 +1,5 @@
 """
-Fix decompilation for syscalls and TLS access.
+Fix decompilation for syscalls and coprocessor instructions.
 - Kynex7510
 """
 
@@ -32,7 +32,7 @@ class TLSHandler(ida_hexrays.udc_filter_t):
     def __init__(self):
         ida_hexrays.udc_filter_t.__init__(self)
 
-    def match(self, cdg: ida_hexrays.codegen_t):
+    def match(self, cdg):
         if cdg.insn.itype == ida_allins.ARM_mrc:
             cp = cdg.insn.Op1.specflag1
             op1 = cdg.insn.Op2.value
@@ -47,9 +47,35 @@ class TLSHandler(ida_hexrays.udc_filter_t):
 
         return False
 
+# Cache Handler
+
+
+class CacheHandler(ida_hexrays.udc_filter_t):
+    def __init__(self):
+        ida_hexrays.udc_filter_t.__init__(self)
+
+    def match(self, cdg):
+        if cdg.insn.itype == ida_allins.ARM_mcr:
+            cp = cdg.insn.Op1.specflag1
+            op1 = cdg.insn.Op2.value
+            rd = cdg.insn.Op2.reg
+            crn = cdg.insn.Op2.specflag1
+            crm = cdg.insn.Op2.specflag2
+            op2 = cdg.insn.Op3.value
+            if cp == 15 and op1 == 0 and crn == 7 and crm == 10:
+                if op2 == 4:
+                    self.init("void __dsb(void);")
+                    return True
+                if op2 == 5:
+                    self.init("void __dmb(void);")
+                    return True
+
+        return False
+
 
 svc_handler = SVCHandler()
 tls_handler = TLSHandler()
+cache_handler = CacheHandler()
 
 if not ida_hexrays.init_hexrays_plugin():
     raise Exception("HexRays initialization failed")
@@ -59,3 +85,6 @@ if not ida_hexrays.install_microcode_filter(svc_handler, True):
 
 if not ida_hexrays.install_microcode_filter(tls_handler, True):
     raise Exception("TLS handler initialization failed")
+
+if not ida_hexrays.install_microcode_filter(cache_handler, True):
+    raise Exception("Cache handler initialization failed")
