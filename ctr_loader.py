@@ -1,5 +1,5 @@
 """
-Nintendo 3DS ARM11 loader.
+Nintendo 3DS loader.
 - Kynex7510
 """
 
@@ -18,7 +18,7 @@ import ida_lines
 PAGE_SIZE = 0x1000
 MEDIA_UNIT = 0x200
 MAX_EXEFS_ENTRIES = 10
-SCRIPT_NAME = "ctru_loader.py"
+SCRIPT_NAME = "ctr_loader.py"
 REPO_URL = "https://github.com/kynex7510/3ds_ida"
 
 # Helpers
@@ -169,9 +169,6 @@ class CodeInfo:
             0x1000, "Enter the size for the .bss section:")
         return cinfo
 
-    def valid(self):
-        return self._text_size != 0
-
     def get_name(self):
         return self._name
 
@@ -238,20 +235,22 @@ class FileFormat(enum.Enum):
     ExeFS = 1
     CXI = 2
     CIA = 3
-    CRO = 4
 
     @staticmethod
     def get_from_file(f):
-        ncch_magic = read_string(f, 0x100, 4)
-        crypto_method = read_bytes(f, 0x18B, 1)[0]
-        content_type = read_bytes(f, 0x18D, 1)[0]
-        if ncch_magic == "NCCH" and (content_type & 0x02):
-            # Warn user about encryption.
-            if crypto_method != 0x00:
-                ida_kernwin.warning(
-                    "Encrypted CXI file detected. Please decrypt it before loading it.")
-            else:
-                return FileFormat.CXI
+        try:
+            ncch_magic = read_string(f, 0x100, 4)
+            crypto_method = read_bytes(f, 0x18B, 1)[0]
+            content_type = read_bytes(f, 0x18D, 1)[0]
+            if ncch_magic == "NCCH" and (content_type & 0x02):
+                # Warn user about encryption.
+                if crypto_method != 0x00:
+                    ida_kernwin.warning(
+                        "Encrypted CXI file detected. Please decrypt it before loading it.")
+                else:
+                    return FileFormat.CXI
+        except:
+            pass
 
         return None
 
@@ -277,8 +276,8 @@ class FileFormat(enum.Enum):
 # Loader
 
 
-def setup_database(cinfo, code_bin_data):
-    # Add base sections.
+def setup_sections(cinfo, code_bin_data):
+    # Add sections.
     add_segment(cinfo.get_text_base(), cinfo.get_text_size(), ".text",
                 ida_segment.SEGPERM_READ | ida_segment.SEGPERM_EXEC)
     code_bytes = code_bin_data[:cinfo.get_text_size()]
@@ -307,20 +306,6 @@ def setup_database(cinfo, code_bin_data):
     # Set entrypoint.
     ida_entry.add_entry(cinfo.get_text_base(),
                         cinfo.get_text_base(), "start", True)
-
-    # Add comments.
-    ida_lines.add_extra_line(cinfo.get_text_base(),
-                             True, f"; Loaded with {SCRIPT_NAME}")
-    ida_lines.add_extra_line(cinfo.get_text_base(), True, f"; {REPO_URL}")
-    ida_lines.add_extra_line(cinfo.get_text_base(),
-                             True, f"; Name: {cinfo.get_name()}")
-    ida_lines.add_extra_line(cinfo.get_text_base(
-    ), True, f"; Title ID: {cinfo.get_title_id()}")
-    ida_lines.add_extra_line(cinfo.get_text_base(
-    ), True, f"; Is compressed? {'Yes' if cinfo.is_code_compressed() else 'No'}")
-    ida_lines.add_extra_line(cinfo.get_text_base(
-    ), True, f"; Is sysmodule? {'Yes' if cinfo.is_sysmodule() else 'No'}")
-    return 1
 
 
 def load_code_info(f, format):
@@ -352,7 +337,7 @@ def load_code(f, format, cinfo):
         exefs_bytes = read_bytes(f, exefs_off, exefs_size)
         code_bin_data = extract_code_bin(exefs_bytes)
         if not code_bin_data:
-            return 0
+            return False
 
     # ExeFS: read .code.
     if format == FileFormat.ExeFS:
@@ -360,7 +345,7 @@ def load_code(f, format, cinfo):
         exefs_bytes = read_bytes(f, 0, f.tell())
         code_bin_data = extract_code_bin(exefs_bytes)
         if not code_bin_data:
-            return 0
+            return False
 
     # Raw: load from file.
     if format == FileFormat.Raw:
@@ -371,28 +356,41 @@ def load_code(f, format, cinfo):
     if cinfo.is_code_compressed():
         code_bin_data = blz_decompress(code_bin_data)
 
-    return setup_database(cinfo, code_bin_data)
+    setup_sections(cinfo, code_bin_data)
+    return True
 
 
-def accept_file(li, path):
-    try:
-        format = FileFormat.get_from_file(li)
-        if not format:
-            format = FileFormat.get_from_path(path)
+def accept_file(f, path):
+    format = FileFormat.get_from_file(f)
+    if not format:
+        format = FileFormat.get_from_path(path)
 
-        if format:
-            return {
-                "format": f"Nintendo 3DS ARM11 ({format.name})",
-                "processor": "ARM",
-                "options": 1 | ida_loader.ACCEPT_FIRST,
-            }
+    if format:
+        return {
+            "format": f"Nintendo 3DS ({format.name})",
+            "processor": "ARM",
+            "options": 1 | ida_loader.ACCEPT_FIRST,
+        }
 
-        return 0
-    except:
-        return 0
+    return 0
 
 
 def load_file(f, neflags, format_string):
     format = FileFormat.get_from_format_string(format_string)
     cinfo = load_code_info(f, format)
-    return load_code(f, format, cinfo)
+
+    if load_code(f, format, cinfo):
+        ida_lines.add_extra_line(
+            cinfo.get_text_base(), True, f"; Loaded with {SCRIPT_NAME}")
+        ida_lines.add_extra_line(cinfo.get_text_base(), True, f"; {REPO_URL}")
+        ida_lines.add_extra_line(
+            cinfo.get_text_base(), True, f"; Name: {cinfo.get_name()}")
+        ida_lines.add_extra_line(cinfo.get_text_base(
+        ), True, f"; Title ID: {cinfo.get_title_id()}")
+        ida_lines.add_extra_line(cinfo.get_text_base(
+        ), True, f"; Is compressed? {'Yes' if cinfo.is_code_compressed() else 'No'}")
+        ida_lines.add_extra_line(cinfo.get_text_base(
+        ), True, f"; Is sysmodule? {'Yes' if cinfo.is_sysmodule() else 'No'}")
+        return 1
+
+    return 0

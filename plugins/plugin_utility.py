@@ -147,7 +147,7 @@ SYSCALL_TYPES = {
     0x07: "Result __usercall svcSetProcessIdealProcessor@<r0>(Handle process@<r0>, s32 processorid@<r1>);",
     0x08: "SvcResultHandle __usercall svcCreateThread@<r0, r1>(s32 thread_priority@<r0>, ThreadFunc entrypoint@<r1>, u32 arg@<r2>, u32* stack_top@<r3>, s32 processor_id@<r4>);",
     0x09: "void svcExitThread(void) __attribute__((noreturn));",
-    0x0A: "void __usercall svcSleepThread(s64 ns@<r1, r0>);",
+    0x0A: "void __usercall svcSleepThread(s64 ns@<r0, r1>);",
     0x0B: "SvcResult32 __usercall svcGetThreadPriority@<r0, r1>(Handle handle@<r1>);",
     0x0C: "Result __usercall svcSetThreadPriority@<r0>(Handle thread@<r0>, s32 prio@<r1>);",
     0x0D: "Result __usercall svcGetThreadAffinityMask@<r0>(u8* affinitymask@<r0>, Handle thread@<r1>, s32 processorcount@<r2>);",
