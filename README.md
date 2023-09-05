@@ -26,7 +26,7 @@ Copy `ctr_loader.py` in `{IDA_PATH}/loaders`.
 Capstone is required:
 
 ```
-python -m pip install capstone==4.0.2
+python -m pip install capstone==5.0.1
 ```
 
 Launch each script with `File -> Script file`.
