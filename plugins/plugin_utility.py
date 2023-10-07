@@ -262,7 +262,7 @@ Set name at address.
 
 
 def rename(addr, name):
-    ida_name.set_name(addr, name, 0)
+    ida_name.set_name(addr, name, ida_name.SN_FORCE)
 
 
 """

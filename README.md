@@ -32,5 +32,5 @@ python -m pip install capstone==5.0.1
 Launch each script with `File -> Script file`.
 
 - `find_syscalls.py`: find each function that uses syscalls, optionally renaming wrappers and functions that call `svcSendSyncRequest`.
-- `fix_decomp.py`: fix syscalls and coprocessor instructions decompilation. Types must be loaded.
+- `fix_decomp.py`: fix special instructions decompilation. Types must be loaded.
 - ~~`load_crs_syms.py`: load symbols from CRS files.~~

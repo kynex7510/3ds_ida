@@ -1,5 +1,5 @@
 """
-Fix decompilation for syscalls and coprocessor instructions.
+Fix decompilation for special instructions.
 - Kynex7510
 """
 
@@ -47,7 +47,7 @@ class TLSHandler(ida_hexrays.udc_filter_t):
 
         return False
 
-# Cache Handler
+# Cache Handlersyscalls and coprocessor instructions.
 
 
 class CacheHandler(ida_hexrays.udc_filter_t):
@@ -58,7 +58,7 @@ class CacheHandler(ida_hexrays.udc_filter_t):
         if cdg.insn.itype == ida_allins.ARM_mcr:
             cp = cdg.insn.Op1.specflag1
             op1 = cdg.insn.Op2.value
-            rd = cdg.insn.Op2.reg
+            # rd = cdg.insn.Op2.reg
             crn = cdg.insn.Op2.specflag1
             crm = cdg.insn.Op2.specflag2
             op2 = cdg.insn.Op3.value
@@ -72,10 +72,26 @@ class CacheHandler(ida_hexrays.udc_filter_t):
 
         return False
 
+# VMSR Handler
+
+
+class VMSRHandler(ida_hexrays.udc_filter_t):
+    def __init__(self):
+        ida_hexrays.udc_filter_t.__init__(self)
+
+    def match(self, cdg):
+        if cdg.insn.itype == ida_allins.ARM_vmsr:
+            input = cdg.insn.Op1.value
+            self.init(f"void __usercall __fmxr(u32 in@<r{input}>);")
+            return True
+
+        return False
+
 
 svc_handler = SVCHandler()
 tls_handler = TLSHandler()
 cache_handler = CacheHandler()
+vmsr_handler = VMSRHandler()
 
 if not ida_hexrays.init_hexrays_plugin():
     raise Exception("HexRays initialization failed")
@@ -88,3 +104,6 @@ if not ida_hexrays.install_microcode_filter(tls_handler, True):
 
 if not ida_hexrays.install_microcode_filter(cache_handler, True):
     raise Exception("Cache handler initialization failed")
+
+if not ida_hexrays.install_microcode_filter(vmsr_handler, True):
+    raise Exception("VMSR handler initialization failed")
