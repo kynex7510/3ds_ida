@@ -280,6 +280,19 @@ def get_segment_base(name):
 
 
 """
+Get segment size by name.
+Return 0 on failure.
+"""
+
+
+def get_segment_size(name):
+    segm = ida_segment.get_segm_by_name(name)
+    if segm:
+        return segm.end_ea - segm.start_ea
+    return 0
+
+
+"""
 Get function bytes.
 Return None on failure.
 """
