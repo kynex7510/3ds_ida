@@ -12,6 +12,7 @@ import ida_segment
 import ida_kernwin
 import ida_bytes
 import ida_lines
+import ida_ida
 
 # Globals
 
@@ -22,7 +23,6 @@ SCRIPT_NAME = "ctr_loader.py"
 REPO_URL = "https://github.com/kynex7510/3ds_ida"
 
 # Helpers
-
 
 def blz_decompress(input_data):
     delta_size = int.from_bytes(input_data[-4:], 'little')
@@ -103,17 +103,14 @@ def extract_code_bin(exefs_bytes):
     for i in range(MAX_EXEFS_ENTRIES):
         file_name = str(exefs_bytes[0x10 * i:0x10*i + 8].decode()).rstrip('\0')
         if file_name == ".code":
-            file_off = int.from_bytes(
-                exefs_bytes[0x10*i + 0x8:0x10*i + 0xC], 'little')
-            file_size = int.from_bytes(
-                exefs_bytes[0x10*i + 0xC:0x10*i + 0x10], 'little')
+            file_off = int.from_bytes(exefs_bytes[0x10*i + 0x8:0x10*i + 0xC], 'little')
+            file_size = int.from_bytes(exefs_bytes[0x10*i + 0xC:0x10*i + 0x10], 'little')
             return exefs_bytes[0x200 + file_off:0x200 + file_off + file_size]
 
     ida_kernwin.warning("ExeFS does not contain a .code file.")
     return None
 
 # CodeInfo
-
 
 class CodeInfo:
     def __init__(self):
@@ -151,22 +148,14 @@ class CodeInfo:
     @staticmethod
     def load_from_input():
         cinfo = CodeInfo()
-        cinfo._code_compressed = ida_kernwin.ask_yn(
-            ida_kernwin.ASKBTN_NO, "Is the code compressed?") == ida_kernwin.ASKBTN_YES
-        cinfo._text_base = ida_kernwin.ask_addr(
-            0x00100000, "Enter the base address for the .text section:")
-        cinfo._text_size = ida_kernwin.ask_long(
-            0x1000, "Enter the size of the .text section:")
-        cinfo._rodata_base = ida_kernwin.ask_addr(
-            0, "Enter the base address for the .rodata section:")
-        cinfo._rodata_size = ida_kernwin.ask_long(
-            0x1000 if cinfo._rodata_base else 0, "Enter the size of the .rodata section:")
-        cinfo._data_base = ida_kernwin.ask_addr(
-            0, "Enter the base address for the .data section:")
-        cinfo._data_size = ida_kernwin.ask_long(
-            0x1000 if cinfo._data_base else 0, "Enter the size for the .data section:")
-        cinfo._bss_size = ida_kernwin.ask_long(
-            0x1000, "Enter the size for the .bss section:")
+        cinfo._code_compressed = ida_kernwin.ask_yn(ida_kernwin.ASKBTN_NO, "Is the code compressed?") == ida_kernwin.ASKBTN_YES
+        cinfo._text_base = ida_kernwin.ask_addr(0x00100000, "Enter the base address for the .text section:")
+        cinfo._text_size = ida_kernwin.ask_long(0x1000, "Enter the size of the .text section:")
+        cinfo._rodata_base = ida_kernwin.ask_addr(0, "Enter the base address for the .rodata section:")
+        cinfo._rodata_size = ida_kernwin.ask_long(0x1000 if cinfo._rodata_base else 0, "Enter the size of the .rodata section:")
+        cinfo._data_base = ida_kernwin.ask_addr(0, "Enter the base address for the .data section:")
+        cinfo._data_size = ida_kernwin.ask_long(0x1000 if cinfo._data_base else 0, "Enter the size for the .data section:")
+        cinfo._bss_size = ida_kernwin.ask_long(0x1000, "Enter the size for the .bss section:")
         return cinfo
 
     def get_name(self):
@@ -229,7 +218,6 @@ class CodeInfo:
 
 # FileFormat
 
-
 class FileFormat(enum.Enum):
     Raw = 0
     ExeFS = 1
@@ -245,8 +233,7 @@ class FileFormat(enum.Enum):
             if ncch_magic == "NCCH" and (content_type & 0x02):
                 # Warn user about encryption.
                 if crypto_method != 0x00:
-                    ida_kernwin.warning(
-                        "Encrypted CXI file detected. Please decrypt it before loading it.")
+                    ida_kernwin.warning("Encrypted CXI file detected. Please decrypt it before loading it.")
                 else:
                     return FileFormat.CXI
         except:
@@ -275,37 +262,29 @@ class FileFormat(enum.Enum):
 
 # Loader
 
-
 def setup_sections(cinfo, code_bin_data):
     # Add sections.
-    add_segment(cinfo.get_text_base(), cinfo.get_text_size(), ".text",
-                ida_segment.SEGPERM_READ | ida_segment.SEGPERM_EXEC)
+    add_segment(cinfo.get_text_base(), cinfo.get_text_size(), ".text", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_EXEC)
     code_bytes = code_bin_data[:cinfo.get_text_size()]
     ida_bytes.put_bytes(cinfo.get_text_base(), code_bytes)
 
     if cinfo.has_rodata():
-        add_segment(cinfo.get_rodata_base(), cinfo.get_rodata_size(),
-                    ".rodata", ida_segment.SEGPERM_READ)
+        add_segment(cinfo.get_rodata_base(), cinfo.get_rodata_size(), ".rodata", ida_segment.SEGPERM_READ)
         rel_rodata_base = cinfo.get_rodata_base() - cinfo.get_text_base()
-        rodata_bytes = code_bin_data[rel_rodata_base:
-                                     rel_rodata_base + cinfo.get_rodata_size()]
+        rodata_bytes = code_bin_data[rel_rodata_base:rel_rodata_base + cinfo.get_rodata_size()]
         ida_bytes.put_bytes(cinfo.get_rodata_base(), rodata_bytes)
 
     if cinfo.has_data():
-        add_segment(cinfo.get_data_base(), cinfo.get_data_size(),
-                    ".data", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_WRITE)
+        add_segment(cinfo.get_data_base(), cinfo.get_data_size(), ".data", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_WRITE)
         rel_data_base = cinfo.get_data_base() - cinfo.get_text_base()
-        data_bytes = code_bin_data[rel_data_base:
-                                   rel_data_base + cinfo.get_data_size()]
+        data_bytes = code_bin_data[rel_data_base:rel_data_base + cinfo.get_data_size()]
         ida_bytes.put_bytes(cinfo.get_data_base(), data_bytes)
 
     if cinfo.has_bss():
-        add_segment(cinfo.get_bss_base(), cinfo.get_bss_size(), ".bss",
-                    ida_segment.SEGPERM_READ | ida_segment.SEGPERM_WRITE)
+        add_segment(cinfo.get_bss_base(), cinfo.get_bss_size(), ".bss", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_WRITE)
 
     # Set entrypoint.
-    ida_entry.add_entry(cinfo.get_text_base(),
-                        cinfo.get_text_base(), "start", True)
+    ida_entry.add_entry(cinfo.get_text_base(), cinfo.get_text_base(), "start", True)
 
 
 def load_code_info(f, format):
@@ -315,8 +294,7 @@ def load_code_info(f, format):
 
     # Raw/ExeFS: load from external exheader/user input.
     if format in [FileFormat.Raw, FileFormat.ExeFS]:
-        exh_path = ida_kernwin.ask_file(
-            False, "exheader.bin", "Choose ExHeader file")
+        exh_path = ida_kernwin.ask_file(False, "exheader.bin", "Choose ExHeader file")
         if exh_path:
             with open(exh_path, "rb") as f:
                 return CodeInfo.load_from_file(f, 0)
@@ -380,17 +358,13 @@ def load_file(f, neflags, format_string):
     cinfo = load_code_info(f, format)
 
     if load_code(f, format, cinfo):
-        ida_lines.add_extra_line(
-            cinfo.get_text_base(), True, f"; Loaded with {SCRIPT_NAME}")
+        ida_ida.idainfo_set_64bit(False)
+        ida_lines.add_extra_line(cinfo.get_text_base(), True, f"; Loaded with {SCRIPT_NAME}")
         ida_lines.add_extra_line(cinfo.get_text_base(), True, f"; {REPO_URL}")
-        ida_lines.add_extra_line(
-            cinfo.get_text_base(), True, f"; Name: {cinfo.get_name()}")
-        ida_lines.add_extra_line(cinfo.get_text_base(
-        ), True, f"; Title ID: {cinfo.get_title_id()}")
-        ida_lines.add_extra_line(cinfo.get_text_base(
-        ), True, f"; Is compressed? {'Yes' if cinfo.is_code_compressed() else 'No'}")
-        ida_lines.add_extra_line(cinfo.get_text_base(
-        ), True, f"; Is sysmodule? {'Yes' if cinfo.is_sysmodule() else 'No'}")
+        ida_lines.add_extra_line(cinfo.get_text_base(), True, f"; Name: {cinfo.get_name()}")
+        ida_lines.add_extra_line(cinfo.get_text_base(), True, f"; Title ID: {cinfo.get_title_id()}")
+        ida_lines.add_extra_line(cinfo.get_text_base(), True, f"; Is compressed? {'Yes' if cinfo.is_code_compressed() else 'No'}")
+        ida_lines.add_extra_line(cinfo.get_text_base(), True, f"; Is sysmodule? {'Yes' if cinfo.is_sysmodule() else 'No'}")
         return 1
 
     return 0
