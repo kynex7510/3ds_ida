@@ -16,11 +16,19 @@ import ida_ida
 
 # Globals
 
+SCRIPT_NAME = "ctr_loader.py"
+REPO_URL = "https://github.com/kynex7510/3ds_ida"
+
 PAGE_SIZE = 0x1000
 MEDIA_UNIT = 0x200
 MAX_EXEFS_ENTRIES = 10
-SCRIPT_NAME = "ctr_loader.py"
-REPO_URL = "https://github.com/kynex7510/3ds_ida"
+FIRM_MODULES = [
+    0x1002, # sm
+    0x1102, # fs
+    0x1202, # pm
+    0x1302, # loader
+    0x1402, # pxi
+]
 
 # Helpers
 
@@ -169,18 +177,31 @@ class CodeInfo:
 
     def is_sysmodule(self):
         return self._title_id.startswith("00040130")
+    
+    def is_firm_module(self):
+        low = int(self._title_id[8:], base=16) & 0xFFFFFFFE # Clear SAFE_MODE bit.
+        return True if low in FIRM_MODULES else False
 
     def get_text_base(self):
         return self._text_base
 
     def get_text_size(self):
         return self._text_size
+    
+    def get_text_offset(self):
+        return 0
 
     def get_rodata_base(self):
         return self._rodata_base
 
     def get_rodata_size(self):
         return self._rodata_size
+    
+    def get_rodata_offset(self):
+        if (self.is_firm_module()):
+            return self.get_text_offset() + self.get_text_size()
+        
+        return self.get_rodata_base() - self.get_text_base()
 
     def has_rodata(self):
         return self._rodata_base and self._rodata_size
@@ -190,6 +211,12 @@ class CodeInfo:
 
     def get_data_size(self):
         return self._data_size
+    
+    def get_data_offset(self):
+        if (self.is_firm_module()):
+            return self.get_rodata_offset() + self.get_rodata_size()
+
+        return self.get_data_base() - self.get_text_base()
 
     def has_data(self):
         return self._data_base and self._data_size
@@ -265,19 +292,17 @@ class FileFormat(enum.Enum):
 def setup_sections(cinfo, code_bin_data):
     # Add sections.
     add_segment(cinfo.get_text_base(), cinfo.get_text_size(), ".text", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_EXEC)
-    code_bytes = code_bin_data[:cinfo.get_text_size()]
+    code_bytes = code_bin_data[cinfo.get_text_offset():cinfo.get_text_offset() + cinfo.get_text_size()]
     ida_bytes.put_bytes(cinfo.get_text_base(), code_bytes)
 
     if cinfo.has_rodata():
         add_segment(cinfo.get_rodata_base(), cinfo.get_rodata_size(), ".rodata", ida_segment.SEGPERM_READ)
-        rel_rodata_base = cinfo.get_rodata_base() - cinfo.get_text_base()
-        rodata_bytes = code_bin_data[rel_rodata_base:rel_rodata_base + cinfo.get_rodata_size()]
+        rodata_bytes = code_bin_data[cinfo.get_rodata_offset():cinfo.get_rodata_offset() + cinfo.get_rodata_size()]
         ida_bytes.put_bytes(cinfo.get_rodata_base(), rodata_bytes)
 
     if cinfo.has_data():
         add_segment(cinfo.get_data_base(), cinfo.get_data_size(), ".data", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_WRITE)
-        rel_data_base = cinfo.get_data_base() - cinfo.get_text_base()
-        data_bytes = code_bin_data[rel_data_base:rel_data_base + cinfo.get_data_size()]
+        data_bytes = code_bin_data[cinfo.get_data_offset():cinfo.get_data_offset() + cinfo.get_data_size()]
         ida_bytes.put_bytes(cinfo.get_data_base(), data_bytes)
 
     if cinfo.has_bss():
@@ -365,6 +390,7 @@ def load_file(f, neflags, format_string):
         ida_lines.add_extra_line(cinfo.get_text_base(), True, f"; Title ID: {cinfo.get_title_id()}")
         ida_lines.add_extra_line(cinfo.get_text_base(), True, f"; Is compressed? {'Yes' if cinfo.is_code_compressed() else 'No'}")
         ida_lines.add_extra_line(cinfo.get_text_base(), True, f"; Is sysmodule? {'Yes' if cinfo.is_sysmodule() else 'No'}")
+        ida_lines.add_extra_line(cinfo.get_text_base(), True, f"; Is FIRM module? {'Yes' if cinfo.is_firm_module() else 'No'}")
         return 1
 
     return 0
