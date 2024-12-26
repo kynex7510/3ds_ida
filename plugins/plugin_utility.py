@@ -164,7 +164,7 @@ SYSCALL_TYPES = {
     0x18: "Result __usercall svcSignalEvent@<r0>(Handle handle@<r0>);",
     0x19: "Result __usercall svcClearEvent@<r0>(Handle handle@<r0>);",
     0x1A: "SvcResultHandle __usercall svcCreateTimer@<r0, r1>(ResetType reset_type@<r1>);",
-    0x1B: "Result __usercall svcSetTimer@<r0>(Handle timer@<r0>, s64 initial@<r3, r1>, s64 interval@<r4, r2>);",
+    0x1B: "Result __usercall svcSetTimer@<r0>(Handle timer@<r0>, s64 initial@<r2, r3>, s64 interval@<r1, r4>);",
     0x1C: "Result __usercall svcCancelTimer@<r0>(Handle timer@<r0>);",
     0x1D: "Result __usercall svcClearTimer@<r0>(Handle timer@<r0>);",
     0x1E: "SvcResultHandle __usercall svcCreateMemoryBlock@<r0, r1>(MemPerm other_perm@<r0>, u32 addr@<r1>, u32 size@<r2>, MemPerm my_perm@<r3>);",

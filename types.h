@@ -488,3 +488,8 @@ struct SvcResultGetDebugThreadParam {
   s64 unused;    // r1 - r2
   u32 out;       // r3
 };
+
+enum PseudoHandles {
+  CUR_THREAD_HANDLE = 0xFFFF8000,
+  CUR_PROCESS_HANDLE = 0xFFFF8001,
+};
