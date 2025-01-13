@@ -493,3 +493,9 @@ enum PseudoHandles {
   CUR_THREAD_HANDLE = 0xFFFF8000,
   CUR_PROCESS_HANDLE = 0xFFFF8001,
 };
+
+struct FS_ProgramInfo {
+  u64 titleId;
+  u8 mediaType;
+  u8 _padding[7];
+};

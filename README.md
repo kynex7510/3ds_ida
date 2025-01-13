@@ -15,7 +15,6 @@ Copy `ctr_loader.py` in `{IDA_PATH}/loaders`.
 - Raw: the binary must be named `code.bin`. An external exheader binary is required, else the user will be asked to provide any information.
 - ExeFS: the binary name must end with the `exefs` extension and must contain a `.code` file. An external exheader binary is required, else the user will be asked to provide any information.
 - CXI: the binary must be decrypted and it must contain an ExeFS with a `.code` file.
-- ~~CIA~~.
 
 ### Types
 
@@ -26,7 +25,7 @@ Copy `ctr_loader.py` in `{IDA_PATH}/loaders`.
 Capstone is required:
 
 ```
-python -m pip install capstone==5.0.1
+python -m pip install capstone==5.0.3
 ```
 
 Launch each script with `File -> Script file`.
