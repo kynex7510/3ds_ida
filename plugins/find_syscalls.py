@@ -3,71 +3,86 @@ Find syscalls.
 - Kynex7510
 """
 
-import plugin_utility
+from plugin_utility import IDAUtils, Logger, Disassembler, SyscallDB
 
 import ida_funcs
-import ida_kernwin
 import ida_bytes
 
-# Globals
+LOGGER = Logger("find_syscalls.py")
+DASM = Disassembler()
+SYSCALLDB = SyscallDB()
 
-PLUGIN_NAME = "find_syscalls.py"
+def _get_func_syscalls(func_addr, func_bytes):
+    result = {}
+    for insn in DASM.dasm(func_bytes, func_addr):
+        if DASM.is_syscall(insn):
+            result[insn.address] = insn.operands[0].value.imm
 
-# Helper
+    return result
 
-
-def handle_func(func, comment_syscalls, rename_sync_requests):
+def _handle_func(func: int, sendSyncRequest: bool, comment_syscalls: bool, rename_sync_requests: bool, output_file) -> None:
     # Find syscalls.
-    func_bytes = plugin_utility.get_func_bytes(func)
-    syscalls = plugin_utility.get_func_syscalls(func.start_ea, func_bytes)
+    func_bytes = IDAUtils.get_func_bytes(func)
+    syscalls = _get_func_syscalls(func.start_ea, func_bytes)
     # Handle all syscalls.
     for address, syscall_id in syscalls.items():
-        if syscall_id not in plugin_utility.SYSCALL_NAMES:
+        syscall = SYSCALLDB.get_by_id(syscall_id)
+        if not syscall:
             continue
-        sys_name = plugin_utility.SYSCALL_NAMES[syscall_id]
         # Handle svcSendSyncRequest.
-        if syscall_id == 0x32 and rename_sync_requests:
-            plugin_utility.rename(func.start_ea, "UnknownSyncRequest")
+        if syscall == sendSyncRequest and rename_sync_requests:
+            IDAUtils.set_name(func.start_ea, "UnknownSyncRequest")
         else:
-            plugin_utility.log(
-                PLUGIN_NAME, f"Found 'svc{sys_name}' @{hex(address)}, in function @{hex(func.start_ea)}")
+            s = f"Found 'svc{syscall.name()}' @{hex(address)}, in function @{hex(func.start_ea)}"
+            if output_file:
+                output_file.write(s + "\n")
+            else:
+                LOGGER.log(s)
         # Add comment.
         if comment_syscalls:
-            ida_bytes.set_cmt(address, f"svc{sys_name}", 0)
+            ida_bytes.set_cmt(address, f"svc{syscall.name()}", 0)
 
-    return
+    return None
 
-# Main
+if __name__ == "__main__":
+    text_base = IDAUtils.get_segment_base(".text")
+    if text_base:
+        # Ask for commenting syscalls.
+        comment_syscalls = IDAUtils.ask_question("Would you like to comment syscalls with their name?")
 
+        # Ask for renaming sync requests.
+        rename_sync_requests = IDAUtils.ask_question("Would you like to rename all the functions calling svcSendSyncRequest?")
 
-text_base = plugin_utility.get_segment_base(".text")
-if text_base:
-    # Ask for commenting syscalls.
-    comment_syscalls = ida_kernwin.ask_yn(
-        ida_kernwin.ASKBTN_NO, "Would you like to comment syscalls with their name?") == ida_kernwin.ASKBTN_YES
+        # Ask for saving the result.
+        output_file = None
+        if IDAUtils.ask_question("Would you like to save the result to a file?"):
+            output_file = open(IDAUtils.ask_file(True, "Select a file where to save the output", "output.txt"), "w")
 
-    # Ask for renaming sync requests.
-    rename_sync_requests = ida_kernwin.ask_yn(
-        ida_kernwin.ASKBTN_NO, "Would you like to rename all the functions calling svcSendSyncRequest?") == ida_kernwin.ASKBTN_YES
+        # Find svcSendSyncRequest.
+        sendSyncRequest = SYSCALLDB.get_by_name("SendSyncRequest")
+        if not sendSyncRequest:
+            LOGGER.log("SendSyncRequest not declared!")
 
-    # Iterate all functions.
-    current_addr = text_base - 1
-    while True:
-        func = ida_funcs.get_next_func(current_addr)
-        if not func:
-            break
-        handle_func(func, comment_syscalls, rename_sync_requests)
-        current_addr = func.start_ea
+        # Iterate all functions.
+        current_addr = text_base - 1
+        while True:
+            func = ida_funcs.get_next_func(current_addr)
+            if not func:
+                break
+            _handle_func(func, sendSyncRequest, comment_syscalls, rename_sync_requests, output_file)
+            current_addr = func.start_ea
 
-    # Iterate all function chunks.
-    current_addr = text_base - 1
-    while True:
-        func = ida_funcs.get_next_fchunk(current_addr)
-        if not func:
-            break
-        handle_func(func, comment_syscalls, rename_sync_requests)
-        current_addr = func.start_ea
+        # Iterate all function chunks.
+        current_addr = text_base - 1
+        while True:
+            func = ida_funcs.get_next_fchunk(current_addr)
+            if not func:
+                break
+            _handle_func(func, sendSyncRequest, comment_syscalls, rename_sync_requests, output_file)
+            current_addr = func.start_ea
 
-    plugin_utility.log(PLUGIN_NAME, "Done!")
-else:
-    raise Exception("Could not find .text base")
+        if output_file:
+            output_file.close()
+        LOGGER.log("Done!")
+    else:
+        raise Exception("Could not find .text base!")
