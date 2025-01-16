@@ -75,22 +75,23 @@ class VMSRHandler(ida_hexrays.udc_filter_t):
 
         return False
 
-svc_handler = SVCHandler()
-tls_handler = TLSHandler()
-cache_handler = CacheHandler()
-vmsr_handler = VMSRHandler()
+if __name__ == "__main__":
+    svc_handler = SVCHandler()
+    tls_handler = TLSHandler()
+    cache_handler = CacheHandler()
+    vmsr_handler = VMSRHandler()
 
-if not ida_hexrays.init_hexrays_plugin():
-    raise Exception("HexRays initialization failed")
+    if not ida_hexrays.init_hexrays_plugin():
+        raise Exception("HexRays initialization failed")
 
-if not ida_hexrays.install_microcode_filter(svc_handler, True):
-    raise Exception("SVC handler initialization failed")
+    if not ida_hexrays.install_microcode_filter(svc_handler, True):
+        raise Exception("SVC handler initialization failed")
 
-if not ida_hexrays.install_microcode_filter(tls_handler, True):
-    raise Exception("TLS handler initialization failed")
+    if not ida_hexrays.install_microcode_filter(tls_handler, True):
+        raise Exception("TLS handler initialization failed")
 
-if not ida_hexrays.install_microcode_filter(cache_handler, True):
-    raise Exception("Cache handler initialization failed")
+    if not ida_hexrays.install_microcode_filter(cache_handler, True):
+        raise Exception("Cache handler initialization failed")
 
-if not ida_hexrays.install_microcode_filter(vmsr_handler, True):
-    raise Exception("VMSR handler initialization failed")
+    if not ida_hexrays.install_microcode_filter(vmsr_handler, True):
+        raise Exception("VMSR handler initialization failed")
