@@ -1,6 +1,6 @@
 # 3ds_ida
 
-(WIP) IDA Pro 7.6+ resources for reverse engineering Nintendo 3DS binaries.
+IDA Pro 7.6+ resources for reverse engineering Nintendo 3DS binaries.
 
 ## Setup
 
