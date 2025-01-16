@@ -3,30 +3,24 @@ Fix decompilation for special instructions.
 - Kynex7510
 """
 
-import plugin_utility
+from plugin_utility import SyscallDB
 
 import ida_hexrays
 import ida_allins
 
-
-# SVC Handler
-
-
 class SVCHandler(ida_hexrays.udc_filter_t):
     def __init__(self):
         ida_hexrays.udc_filter_t.__init__(self)
+        self._syscalldb = SyscallDB()
 
     def match(self, cdg):
         if cdg.insn.itype == ida_allins.ARM_svc:
-            id = cdg.insn.Op1.value
-            if id in plugin_utility.SYSCALL_TYPES:
-                self.init(plugin_utility.SYSCALL_TYPES[id])
+            syscall = self._syscalldb.get_by_id(cdg.insn.Op1.value)
+            if syscall:
+                self.init(syscall.signature())
                 return True
 
         return False
-
-# TLS Handler
-
 
 class TLSHandler(ida_hexrays.udc_filter_t):
     def __init__(self):
@@ -46,9 +40,6 @@ class TLSHandler(ida_hexrays.udc_filter_t):
                 return True
 
         return False
-
-# Cache Handlersyscalls and coprocessor instructions.
-
 
 class CacheHandler(ida_hexrays.udc_filter_t):
     def __init__(self):
@@ -72,9 +63,6 @@ class CacheHandler(ida_hexrays.udc_filter_t):
 
         return False
 
-# VMSR Handler
-
-
 class VMSRHandler(ida_hexrays.udc_filter_t):
     def __init__(self):
         ida_hexrays.udc_filter_t.__init__(self)
@@ -86,7 +74,6 @@ class VMSRHandler(ida_hexrays.udc_filter_t):
             return True
 
         return False
-
 
 svc_handler = SVCHandler()
 tls_handler = TLSHandler()
