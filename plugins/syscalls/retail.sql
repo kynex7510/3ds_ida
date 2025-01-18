@@ -36,7 +36,7 @@ INSERT INTO syscalls (id, name, signature) VALUES
 (0x1B, 'SetTimer', 'Result __usercall svcSetTimer@<r0>(Handle timer@<r0>, s64 initial@<r2, r3>, s64 interval@<r1, r4>);'),
 (0x1C, 'CancelTimer', 'Result __usercall svcCancelTimer@<r0>(Handle timer@<r0>);'),
 (0x1D, 'ClearTimer', 'Result __usercall svcClearTimer@<r0>(Handle timer@<r0>);'),
-(0x1E, 'CreateMemory', 'SvcResultHandle __usercall svcCreateMemoryBlock@<r0, r1>(MemPerm other_perm@<r0>, u32 addr@<r1>, u32 size@<r2>, MemPerm my_perm@<r3>);'),
+(0x1E, 'CreateMemoryBlock', 'SvcResultHandle __usercall svcCreateMemoryBlock@<r0, r1>(MemPerm other_perm@<r0>, u32 addr@<r1>, u32 size@<r2>, MemPerm my_perm@<r3>);'),
 (0x1F, 'MapMemoryBlock', 'Result __usercall svcMapMemoryBlock@<r0>(Handle memblock@<r0>, u32 addr@<r1>, MemPerm my_perm@<r2>, MemPerm other_perm@<r3>);'),
 (0x20, 'UnmapMemoryBlock', 'Result __usercall svcUnmapMemoryBlock@<r0>(Handle memblock@<r0>, u32 addr@<r1>);'),
 (0x21, 'CreateAddressArbiter', 'SvcResultHandle __usercall svcCreateAddressArbiter@<r0, r1>(void);'),
