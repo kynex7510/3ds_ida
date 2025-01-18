@@ -27,19 +27,18 @@ def _handle_func(func: int, sendSyncRequest: bool, comment_syscalls: bool, renam
     # Handle all syscalls.
     for address, syscall_id in syscalls.items():
         syscall = SYSCALLDB.get_by_id(syscall_id)
-        if not syscall:
-            continue
         # Handle svcSendSyncRequest.
         if syscall == sendSyncRequest and rename_sync_requests:
             IDAUtils.set_name(func.start_ea, "UnknownSyncRequest")
+        # Log syscall.
+        syscall_name = f"svc{syscall.name()}" if syscall else f"UNKNOWN_{hex(syscall_id)[2:].upper()}"
+        fmt = f"Found {syscall_name} @{hex(address)}, in function @{hex(func.start_ea)}"
+        if output_file:
+            output_file.write(fmt + "\n")
         else:
-            s = f"Found 'svc{syscall.name()}' @{hex(address)}, in function @{hex(func.start_ea)}"
-            if output_file:
-                output_file.write(s + "\n")
-            else:
-                LOGGER.log(s)
+            LOGGER.log(fmt)
         # Add comment.
-        if comment_syscalls:
+        if syscall and comment_syscalls:
             ida_bytes.set_cmt(address, f"svc{syscall.name()}", 0)
 
     return None
