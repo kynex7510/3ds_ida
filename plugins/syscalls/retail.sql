@@ -43,7 +43,7 @@ INSERT INTO syscalls (id, name, signature) VALUES
 (0x22, 'ArbitrateAddress', 'Result __usercall svcArbitrateAddress@<r0>(Handle arbiter@<r0>, u32 addr@<r1>, ArbitrationType type@<r2>, s32 value@<r3>, s64 timeoutNs@<r4, r5>);'),
 (0x23, 'CloseHandle', 'Result __usercall svcCloseHandle@<r0>(Handle handle@<r0>);'),
 (0x24, 'WaitSynchronization', 'Result __usercall svcWaitSynchronization@<r0>(Handle handle@<r0>, s64 nanoseconds@<r2, r3>);'),
-(0x25, 'WaitSynchronizationN', 'SvcResult32 __usercall svcWaitSynchronizationN@<r0, r1>(const Handle* handles@<r1>, s32 handlesNum@<r2>, bool waitAll@<r3>, s64 nanoseconds@<r0, r4>);'),
+(0x25, 'WaitSynchronizationN', 'SvcResult32 __usercall svcWaitSynchronizationN@<r0, r1>(const Handle* handles@<r1>, s32 numHandles@<r2>, bool waitAll@<r3>, s64 nanoseconds@<r0, r4>);'),
 (0x27, 'DuplicateHandle', 'SvcResultHandle __usercall svcDuplicateHandle@<r0, r1>(Handle original@<r1>);'),
 (0x28, 'GetSystemTick', 'u64 __usercall svcGetSystemTick@<r0, r1>(void);'),
 (0x29, 'GetHandleInfo', 'SvcResult64 __usercall svcGetHandleInfo@<r0, r1, r2>(Handle handle@<r1>, u32 param@<r2>);'),

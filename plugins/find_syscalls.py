@@ -16,7 +16,9 @@ def _get_func_syscalls(func_addr, func_bytes):
     result = {}
     for insn in DASM.dasm(func_bytes, func_addr):
         if DASM.is_syscall(insn):
-            result[insn.address] = insn.operands[0].value.imm
+            id = insn.operands[0].value.imm
+            if id > 0 and id <= 0xFF:
+                result[insn.address] = id
 
     return result
 
@@ -66,15 +68,6 @@ if __name__ == "__main__":
         current_addr = text_base - 1
         while True:
             func = ida_funcs.get_next_func(current_addr)
-            if not func:
-                break
-            _handle_func(func, sendSyncRequest, comment_syscalls, rename_sync_requests, output_file)
-            current_addr = func.start_ea
-
-        # Iterate all function chunks.
-        current_addr = text_base - 1
-        while True:
-            func = ida_funcs.get_next_fchunk(current_addr)
             if not func:
                 break
             _handle_func(func, sendSyncRequest, comment_syscalls, rename_sync_requests, output_file)
