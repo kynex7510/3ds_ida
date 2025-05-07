@@ -33,3 +33,4 @@ Launch each script with `File -> Script file`.
 - `find_syscalls.py`: find each function that uses syscalls, optionally renaming wrappers and functions that call `svcSendSyncRequest`.
 - `fix_decomp.py`: fix special instructions decompilation. Types must be loaded.
 - `setup_switches.py`: setup switch idioms.
+- `make_ips_patch.py`: generate an IPS file from IDA patches that can be loaded in [luma](https://github.com/LumaTeam/Luma3DS).
