@@ -146,3 +146,7 @@ def get_accept_file_result(format):
             }
     
     return 0
+
+# Dummy function used to avoid IDA complaining.
+def accept_file(f, path):
+    return 0
