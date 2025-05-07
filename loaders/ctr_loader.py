@@ -3,16 +3,15 @@ Nintendo 3DS loader.
 - Kynex7510
 """
 
-import enum
-from pathlib import Path
+import ctr_utility
+from ctr_utility import FileFormat
 
-import ida_loader
-import ida_entry
-import ida_segment
-import ida_kernwin
-import ida_bytes
-import ida_lines
 import ida_ida
+import ida_kernwin
+import ida_segment
+import ida_bytes
+import ida_entry
+import ida_lines
 
 # Globals
 
@@ -29,94 +28,6 @@ FIRM_MODULES = [
     0x1302, # loader
     0x1402, # pxi
 ]
-
-# Helpers
-
-def blz_decompress(input_data):
-    delta_size = int.from_bytes(input_data[-4:], 'little')
-    ranges = int.from_bytes(input_data[-8:-4], 'little')
-    current_out = len(input_data) + delta_size
-    current_in = len(input_data) - (ranges >> 24)
-    end = len(input_data) - (ranges & 0xFFFFFF)
-    buffer = [b'\0'] * (len(input_data) + delta_size)
-    buffer[:len(input_data)] = input_data
-
-    while current_in > end:
-        current_in -= 1
-        control = buffer[current_in]
-        for _ in range(8):
-            if control & 0x80:
-                current_in -= 1
-                b1 = buffer[current_in]
-                current_in -= 1
-                b2 = buffer[current_in]
-                index = ((b2 | (int(b1) << 8)) & 0xFFFF0FFF) + 2
-                loops = (b1 >> 4) + 2
-                while True:
-                    b = buffer[current_out + index]
-                    current_out -= 1
-                    buffer[current_out] = b
-                    loops -= 1
-                    if loops < 0:
-                        break
-            else:
-                current_out -= 1
-                current_in -= 1
-                buffer[current_out] = buffer[current_in]
-
-            control = (control << 1) & 0xFF
-            if current_in <= end:
-                return bytes(buffer)
-
-    return bytes(buffer)
-
-
-def read_bytes(f, off, size):
-    f.seek(off)
-    b = f.read(size)
-    if len(b) < size:
-        raise Exception("Could not read bytes from file")
-    return b
-
-
-def read_dword(f, off):
-    return int.from_bytes(read_bytes(f, off, 4), 'little')
-
-
-def read_qword(f, off):
-    return int.from_bytes(read_bytes(f, off, 8), 'little')
-
-
-def read_string(f, off, len):
-    return str(read_bytes(f, off, len).decode()).rstrip('\0')
-
-
-def add_segment(start, size, name, perms) -> None:
-    if perms & ida_segment.SEGPERM_EXEC:
-        sclass = "CODE"
-    elif perms == ida_segment.SEGPERM_READ:
-        sclass = "CONST"
-    elif name == ".bss":
-        sclass = "BSS"
-    else:
-        sclass = "DATA"
-    if not ida_segment.add_segm(0, start, start + size, name, sclass):
-        raise Exception(f"Could not add segment {name}")
-    seg = ida_segment.get_segm_by_name(name)
-    ida_segment.set_segm_addressing(seg, 1)
-    seg.perm = perms
-
-
-def extract_code_bin(exefs_bytes):
-    for i in range(MAX_EXEFS_ENTRIES):
-        file_name = str(exefs_bytes[0x10 * i:0x10*i + 8].decode()).rstrip('\0')
-        if file_name == ".code":
-            file_off = int.from_bytes(exefs_bytes[0x10*i + 0x8:0x10*i + 0xC], 'little')
-            file_size = int.from_bytes(exefs_bytes[0x10*i + 0xC:0x10*i + 0x10], 'little')
-            return exefs_bytes[0x200 + file_off:0x200 + file_off + file_size]
-
-    ida_kernwin.warning("ExeFS does not contain a .code file.")
-    return None
 
 # CodeInfo
 
@@ -138,18 +49,18 @@ class CodeInfo:
         cinfo = CodeInfo()
 
         # Load title info.
-        cinfo._name = read_string(f, off, 8)
-        cinfo._title_id = hex(read_qword(f, off + 0x200))[2:].zfill(16).upper()
-        cinfo._code_compressed = read_bytes(f, off + 0x0D, 1)[0] & 1 == 1
+        cinfo._name = ctr_utility.read_string(f, off, 8)
+        cinfo._title_id = hex(ctr_utility.read_qword(f, off + 0x200))[2:].zfill(16).upper()
+        cinfo._code_compressed = ctr_utility.read_bytes(f, off + 0x0D, 1)[0] & 1 == 1
 
         # Load section info.
-        cinfo._text_base = read_dword(f, off + 0x10)
-        cinfo._text_size = read_dword(f, off + 0x18)
-        cinfo._rodata_base = read_dword(f, off + 0x20)
-        cinfo._rodata_size = read_dword(f, off + 0x28)
-        cinfo._data_base = read_dword(f, off + 0x30)
-        cinfo._data_size = read_dword(f, off + 0x38)
-        cinfo._bss_size = read_dword(f, off + 0x3C)
+        cinfo._text_base = ctr_utility.read_dword(f, off + 0x10)
+        cinfo._text_size = ctr_utility.read_dword(f, off + 0x18)
+        cinfo._rodata_base = ctr_utility.read_dword(f, off + 0x20)
+        cinfo._rodata_size = ctr_utility.read_dword(f, off + 0x28)
+        cinfo._data_base = ctr_utility.read_dword(f, off + 0x30)
+        cinfo._data_size = ctr_utility.read_dword(f, off + 0x38)
+        cinfo._bss_size = ctr_utility.read_dword(f, off + 0x3C)
 
         return cinfo
 
@@ -243,74 +154,72 @@ class CodeInfo:
     def has_bss(self):
         return self._bss_size
 
-# FileFormat
-
-class FileFormat(enum.Enum):
-    Raw = 0
-    ExeFS = 1
-    CXI = 2
-    CIA = 3
-
-    @staticmethod
-    def get_from_file(f):
-        try:
-            ncch_magic = read_string(f, 0x100, 4)
-            crypto_method = read_bytes(f, 0x18B, 1)[0]
-            content_type = read_bytes(f, 0x18D, 1)[0]
-            if ncch_magic == "NCCH" and (content_type & 0x02):
-                # Warn user about encryption.
-                if crypto_method != 0x00:
-                    ida_kernwin.warning("Encrypted CXI file detected. Please decrypt it before loading it.")
-                else:
-                    return FileFormat.CXI
-        except:
-            pass
-
-        return None
-
-    @staticmethod
-    def get_from_path(path):
-        name = Path(path).name.lower()
-
-        if name == "code.bin":
-            return FileFormat.Raw
-        elif name.endswith(".exefs"):
-            return FileFormat.ExeFS
-
-        return None
-
-    @staticmethod
-    def get_from_format_string(format_string: str):
-        for i in range(len(FileFormat)):
-            if format_string.find(FileFormat(i).name) != -1:
-                return FileFormat(i)
-
-        return None
-
 # Loader
 
 def setup_sections(cinfo, code_bin_data):
     # Add sections.
-    add_segment(cinfo.get_text_base(), cinfo.get_text_size(), ".text", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_EXEC)
+    ctr_utility.add_segment(cinfo.get_text_base(), cinfo.get_text_size(), ".text", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_EXEC)
     code_bytes = code_bin_data[cinfo.get_text_offset():cinfo.get_text_offset() + cinfo.get_text_size()]
     ida_bytes.put_bytes(cinfo.get_text_base(), code_bytes)
 
     if cinfo.has_rodata():
-        add_segment(cinfo.get_rodata_base(), cinfo.get_rodata_size(), ".rodata", ida_segment.SEGPERM_READ)
+        ctr_utility.add_segment(cinfo.get_rodata_base(), cinfo.get_rodata_size(), ".rodata", ida_segment.SEGPERM_READ)
         rodata_bytes = code_bin_data[cinfo.get_rodata_offset():cinfo.get_rodata_offset() + cinfo.get_rodata_size()]
         ida_bytes.put_bytes(cinfo.get_rodata_base(), rodata_bytes)
 
     if cinfo.has_data():
-        add_segment(cinfo.get_data_base(), cinfo.get_data_size(), ".data", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_WRITE)
+        ctr_utility.add_segment(cinfo.get_data_base(), cinfo.get_data_size(), ".data", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_WRITE)
         data_bytes = code_bin_data[cinfo.get_data_offset():cinfo.get_data_offset() + cinfo.get_data_size()]
         ida_bytes.put_bytes(cinfo.get_data_base(), data_bytes)
 
     if cinfo.has_bss():
-        add_segment(cinfo.get_bss_base(), cinfo.get_bss_size(), ".bss", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_WRITE)
+        ctr_utility.add_segment(cinfo.get_bss_base(), cinfo.get_bss_size(), ".bss", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_WRITE)
 
     # Set entrypoint.
     ida_entry.add_entry(cinfo.get_text_base(), cinfo.get_text_base(), "start", True)
 
+def extract_code_bin(exefs_bytes):
+    for i in range(MAX_EXEFS_ENTRIES):
+        file_name = str(exefs_bytes[0x10 * i:0x10*i + 8].decode()).rstrip('\0')
+        if file_name == ".code":
+            file_off = int.from_bytes(exefs_bytes[0x10*i + 0x8:0x10*i + 0xC], 'little')
+            file_size = int.from_bytes(exefs_bytes[0x10*i + 0xC:0x10*i + 0x10], 'little')
+            return exefs_bytes[0x200 + file_off:0x200 + file_off + file_size]
+
+    ida_kernwin.warning("ExeFS does not contain a .code file.")
+    return None
+
+def load_code(f, format, cinfo):
+    code_bin_data = None
+
+    # CXI: read .code from exefs.
+    if format == FileFormat.CXI:
+        exefs_off = ctr_utility.read_dword(f, 0x1A0) * MEDIA_UNIT
+        exefs_size = ctr_utility.read_dword(f, 0x1A4) * MEDIA_UNIT
+        exefs_bytes = ctr_utility.read_bytes(f, exefs_off, exefs_size)
+        code_bin_data = extract_code_bin(exefs_bytes)
+        if not code_bin_data:
+            return False
+
+    # ExeFS: read .code.
+    if format == FileFormat.ExeFS:
+        f.seek(0, 2)
+        exefs_bytes = ctr_utility.read_bytes(f, 0, f.tell())
+        code_bin_data = extract_code_bin(exefs_bytes)
+        if not code_bin_data:
+            return False
+
+    # Raw: load from file.
+    if format == FileFormat.Raw:
+        f.seek(0, 2)
+        code_bin_data = ctr_utility.read_bytes(f, 0, f.tell())
+
+    # Decompress if needed.
+    if cinfo.is_code_compressed():
+        code_bin_data = ctr_utility.blz_decompress(code_bin_data)
+
+    setup_sections(cinfo, code_bin_data)
+    return True
 
 def load_code_info(f, format):
     # CXI: read from exheader.
@@ -329,54 +238,16 @@ def load_code_info(f, format):
     # Unreachable.
     raise Exception("Invalid format")
 
-
-def load_code(f, format, cinfo):
-    code_bin_data = None
-
-    # CXI: read .code from exefs.
-    if format == FileFormat.CXI:
-        exefs_off = read_dword(f, 0x1A0) * MEDIA_UNIT
-        exefs_size = read_dword(f, 0x1A4) * MEDIA_UNIT
-        exefs_bytes = read_bytes(f, exefs_off, exefs_size)
-        code_bin_data = extract_code_bin(exefs_bytes)
-        if not code_bin_data:
-            return False
-
-    # ExeFS: read .code.
-    if format == FileFormat.ExeFS:
-        f.seek(0, 2)
-        exefs_bytes = read_bytes(f, 0, f.tell())
-        code_bin_data = extract_code_bin(exefs_bytes)
-        if not code_bin_data:
-            return False
-
-    # Raw: load from file.
-    if format == FileFormat.Raw:
-        f.seek(0, 2)
-        code_bin_data = read_bytes(f, 0, f.tell())
-
-    # Decompress if needed.
-    if cinfo.is_code_compressed():
-        code_bin_data = blz_decompress(code_bin_data)
-
-    setup_sections(cinfo, code_bin_data)
-    return True
-
-
 def accept_file(f, path):
     format = FileFormat.get_from_file(f)
     if not format:
         format = FileFormat.get_from_path(path)
 
-    if format:
-        return {
-            "format": f"Nintendo 3DS ({format.name})",
-            "processor": "ARM",
-            "options": 1 | ida_loader.ACCEPT_FIRST,
-        }
+    # CRO is handled by the other script.
+    if format == FileFormat.CRO:
+        return 0
 
-    return 0
-
+    return ctr_utility.get_accept_file_result(format)
 
 def load_file(f, neflags, format_string):
     format = FileFormat.get_from_format_string(format_string)
