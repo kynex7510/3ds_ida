@@ -50,6 +50,45 @@ class IDAUtils:
     def ask_file(save: bool, prompt: str, default: str) -> str:
         return ida_kernwin.ask_file(save, default, prompt)
 
+    @staticmethod
+    def file_size() -> int:
+        seg_sizes = [
+            IDAUtils.get_segment_size(".text"),
+            IDAUtils.get_segment_size(".rodata"),
+            IDAUtils.get_segment_size(".data")
+        ]
+
+        size = 0
+        for s in seg_sizes:
+            size += s
+        
+        assert size != 0
+        return size
+    
+    @staticmethod
+    def map_size() -> int:
+        return IDAUtils.file_size() + IDAUtils.get_segment_size(".bss")
+    
+    @staticmethod
+    def map_base() -> int:
+        seg_bases = [
+            IDAUtils.get_segment_base(".text"),
+            IDAUtils.get_segment_base(".rodata"),
+            IDAUtils.get_segment_base(".data"),
+            IDAUtils.get_segment_base(".bss"),
+        ]
+
+        base = 0xFFFFFFFF
+        for b in seg_bases:
+            if b == 0:
+                continue
+
+            if b < base:
+                base = b
+
+        assert base != 0
+        return base
+
 class Logger:
     def __init__(self, plugin_name: str) -> None:
         self.plugin_name = plugin_name
