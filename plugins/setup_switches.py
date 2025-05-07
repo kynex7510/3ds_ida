@@ -1,5 +1,5 @@
 """
-Fix switch case handling.
+Setup switch idioms.
 - Kynex7510
 """
 
@@ -15,7 +15,7 @@ import idc
 SWITCH_SIGNATURE = "0xE55EC001 0xE153000C"
 SWITCH_NAME = "__ARM_switch8"
 
-LOGGER = Logger("fix_switches.py")
+LOGGER = Logger("setup_switches.py")
 
 if __name__ == "__main__":
     text_base = IDAUtils.get_segment_base(".text")
@@ -27,15 +27,14 @@ if __name__ == "__main__":
             raise Exception("Could not create pattern object")  # Shouldn't happen.
         switch_handler, _ = ida_bytes.bin_search(text_base, text_base + text_size, patterns, ida_bytes.BIN_SEARCH_FORWARD | ida_bytes.BIN_SEARCH_BITMASK | ida_bytes.BIN_SEARCH_NOSHOW)
         if switch_handler != idc.BADADDR:
-            print(switch_handler)
             LOGGER.log(f"Found switch handler: {hex(switch_handler)}")
             # Rename switch handler.
             IDAUtils.set_name(switch_handler, SWITCH_NAME)
-            # Iterate and fix switch references.
+            # Iterate and setup switch references.
             switch_addr = ida_xref.get_first_cref_to(switch_handler)
             while switch_addr != idc.BADADDR:
                 if switch_addr > text_base and switch_addr < (text_base + text_size):
-                    LOGGER.log(f"Fixing switch block: {hex(switch_addr)}")
+                    LOGGER.log(f"Setting up switch block: {hex(switch_addr)}")
                     ida_bytes.del_items(switch_addr, 0, 4)
                     ida_ua.create_insn(switch_addr)
                 switch_addr = ida_xref.get_next_cref_to(switch_handler, switch_addr)
