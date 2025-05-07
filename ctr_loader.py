@@ -139,7 +139,7 @@ class CodeInfo:
 
         # Load title info.
         cinfo._name = read_string(f, off, 8)
-        cinfo._title_id = hex(read_qword(f, off + 0x200))[2:].zfill(16)
+        cinfo._title_id = hex(read_qword(f, off + 0x200))[2:].zfill(16).upper()
         cinfo._code_compressed = read_bytes(f, off + 0x0D, 1)[0] & 1 == 1
 
         # Load section info.
