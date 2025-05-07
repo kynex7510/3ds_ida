@@ -1,5 +1,5 @@
 """
-Utility used by plugins.
+Utilities used by plugins.
 - Kynex7510
 """
 
