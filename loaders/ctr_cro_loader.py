@@ -23,9 +23,10 @@ SEGMENT_DATA = 2
 SEGMENT_BSS = 3
 
 class Segment:
-    def __init__(self, id, offset, base, size):
+    def __init__(self, id, offset, data_size, base, size):
         self._id = id
         self._offset = offset
+        self._data_size = data_size
         self._base = base
         self._size = size
 
@@ -35,6 +36,9 @@ class Segment:
     def offset(self):
         return self._offset
     
+    def data_size(self):
+        return self._data_size
+    
     def base(self):
         return self._base
 
@@ -43,19 +47,19 @@ class Segment:
 
     def get_setup_info(self):
         if self._id == SEGMENT_TEXT:
-            return ("TEXT", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_EXEC)
+            return (".text", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_EXEC)
         
         if self._id == SEGMENT_RODATA:
-            return ("RODATA", ida_segment.SEGPERM_READ)
+            return (".rodata", ida_segment.SEGPERM_READ)
         
         if self._id == SEGMENT_DATA:
-            return ("DATA", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_WRITE)
+            return (".data", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_WRITE)
         
         if self._id == SEGMENT_BSS:
-            return ("BSS", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_WRITE)
+            return (".bss", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_WRITE)
         
         raise Exception(f"Unknown segment ID: {self._id}")
-    
+
 class CROInfo:
     def __init__(self):
         self._name = "(UNKNOWN)"
@@ -79,43 +83,44 @@ class CROInfo:
         segtable_offset = ctr_utility.read_dword(f, 0xC8)
         num_segments = ctr_utility.read_dword(f, 0xCC)
 
-        # First we determine where to place .data and .bss.
-        # TODO: figure out how .data base is handled by the application.
-        # TODO: for now we assume that .data always exists, and CRO specifies a valid offset.
+        # Calculate .data base.
         data_base = 0xFFFFFFFF
-        data_size = 0
-        bss_size = 0
        
         for i in range(num_segments):
             seg_offset = ctr_utility.read_dword(f, segtable_offset + (0xC * i))
-            seg_size = ctr_utility.read_dword(f, segtable_offset + (0xC * i) + 4)
             seg_id = ctr_utility.read_dword(f, segtable_offset + (0xC * i) + 8)
 
             if seg_id == SEGMENT_DATA:
-                assert data_size == 0
                 data_base = seg_offset
-                data_size = seg_size
-                continue
+                break
 
-            if seg_id == SEGMENT_BSS:
-                assert bss_size == 0
-                bss_size = seg_size
-                continue
+        # Calculate bases and sizes.
+        # - .data size is read from CRO, aligned at 4 bytes;
+        # - .bss base is .data base + .data size;
+        # - .bss size is read from CRO.
+        raw_data_size = ctr_utility.read_dword(f, 0xBC)
+        data_size = ctr_utility.align_up(raw_data_size, 4)
 
-        # Calculate offsets.
         bss_base = data_base + data_size
+        bss_size = ctr_utility.read_dword(f, 0x94)
 
-        # Now we can correctly load segments.
+        # Load segments.
         for i in range(num_segments):
             seg_offset = ctr_utility.read_dword(f, segtable_offset + (0xC * i))
-            seg_size = ctr_utility.read_dword(f, segtable_offset + (0xC * i) + 4)
+            seg_data_size = ctr_utility.read_dword(f, segtable_offset + (0xC * i) + 4)
             seg_id = ctr_utility.read_dword(f, segtable_offset + (0xC * i) + 8)
 
             seg_base = seg_offset
-            if seg_id == SEGMENT_BSS:
+            seg_size = seg_data_size
+            if seg_id == SEGMENT_DATA:
+                seg_base = data_base
+                seg_size = data_size
+            elif seg_id == SEGMENT_BSS:
+                assert data_base != 0xFFFFFFFF
                 seg_base = bss_base
+                seg_size = bss_size
 
-            seg = Segment(seg_id, seg_offset, seg_base, seg_size)
+            seg = Segment(seg_id, seg_offset, seg_data_size, seg_base, seg_size)
             cinfo._segments.append(seg)
 
         return cinfo
@@ -149,7 +154,7 @@ def load_cro(f, cinfo):
         ctr_utility.add_segment(seg.base(), seg.size(), name, perms)
 
         if seg.offset() != 0:
-            seg_bytes = ctr_utility.read_bytes(f, seg.offset(), seg.size())
+            seg_bytes = ctr_utility.read_bytes(f, seg.offset(), seg.data_size())
             ida_bytes.put_bytes(seg.base(), seg_bytes)
 
     return True

@@ -50,7 +50,6 @@ def blz_decompress(input_data):
 
     return bytes(buffer)
 
-
 def read_bytes(f, off, size):
     f.seek(off)
     b = f.read(size)
@@ -61,10 +60,12 @@ def read_bytes(f, off, size):
 def read_dword(f, off):
     return int.from_bytes(read_bytes(f, off, 4), 'little')
 
-
 def read_qword(f, off):
     return int.from_bytes(read_bytes(f, off, 8), 'little')
 
+def align_up(v, alignment):
+    alignment -= 1
+    return (v + alignment) & ~alignment
 
 def read_string(f, off, len):
     return str(read_bytes(f, off, len).decode())
