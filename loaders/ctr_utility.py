@@ -67,7 +67,19 @@ def read_qword(f, off):
 
 
 def read_string(f, off, len):
-    return str(read_bytes(f, off, len).decode()).rstrip('\0')
+    return str(read_bytes(f, off, len).decode())
+
+def read_cstring(f, off, expected_size):
+    s = ""
+
+    index = 0
+    while True:
+        data = read_bytes(f, off + index, expected_size)
+        for b in data:
+            if b == 0:
+                return s
+            s += chr(b)
+        index += expected_size
 
 def add_segment(start, size, name, perms) -> None:
     if perms & ida_segment.SEGPERM_EXEC:
