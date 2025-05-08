@@ -11,6 +11,7 @@ import ida_segment
 
 import ida_lines
 import ida_bytes
+import ida_fixup
 
 SCRIPT_NAME = "ctr_cro_loader.py"
 REPO_URL = "https://github.com/kynex7510/3ds_ida"
@@ -60,11 +61,55 @@ class Segment:
         
         raise Exception(f"Unknown segment ID: {self._id}")
 
+R_ARM_NONE = 0
+R_ARM_ABS32 = 2
+R_ARM_REL32 = 3
+R_ARM_THM_PC22 = 10
+R_ARM_CALL = 28
+R_ARM_JUMP24 = 29
+R_ARM_TARGET1 = 38
+R_ARM_PREL31 = 42
+
+class Relocation:
+    def __init__(self, target, type, base, addend):
+        self._target = target
+        self._type = type
+        self._base = base
+        self._addend = addend
+
+    def apply(self):
+        if self._type == R_ARM_NONE:
+            return
+        
+        fixup = ida_fixup.fixup_data_t()
+
+        if self._type == R_ARM_ABS32 or self._type == R_ARM_TARGET1:
+            fixup.set_type_and_flags(ida_fixup.FIXUP_OFF32)
+            ida_bytes.put_dword(self._target, self._base + self._addend)
+        #elif self._type == R_ARM_REL32:
+        #elif self._type == R_ARM_THM_PC22:
+        #elif self._type == R_ARM_CALL:
+        #elif self._type == R_ARM_JUMP24:
+        #elif self._type == R_ARM_PREL31: # "PREL31"
+        else:
+            raise Exception(f"Unknown relocation type \"{self._type}\"")
+        
+        seg = ida_segment.getseg(self._base)
+        fixup.sel = seg.sel
+        fixup.off = self._addend
+        ida_fixup.set_fixup(self._target, fixup)
+        
+        print(f"FIXUP @ {hex(self._target)}, TYPE: {self._type}, ADDEND: {self._addend}")
+
+        return
+
 class CROInfo:
     def __init__(self):
         self._name = "(UNKNOWN)"
         self._module_name = "(UNKNOWN)"
         self._segments = []
+        self._relocs = []
+        return
 
     @staticmethod
     def load_from_file(f):
@@ -123,6 +168,21 @@ class CROInfo:
             seg = Segment(seg_id, seg_offset, seg_data_size, seg_base, seg_size)
             cinfo._segments.append(seg)
 
+        # Load relocs.
+        reloctable_offset = ctr_utility.read_dword(f, 0x128)
+        num_relocs = ctr_utility.read_dword(f, 0x12C)
+
+        for i in range(num_relocs):
+            offset = ctr_utility.read_dword(f, reloctable_offset + (0xC * i))
+            type = ctr_utility.read_byte(f, reloctable_offset + (0xC * i) + 4)
+            base_index = ctr_utility.read_byte(f, reloctable_offset + (0xC * i) + 5)
+            addend = ctr_utility.read_dword(f, reloctable_offset + (0xC * i) + 8)
+
+            target = cinfo.get_addr_for_patch(offset)
+            base = cinfo.get_addr_for_patch(base_index)
+            reloc = Relocation(target, type, base, addend)
+            cinfo._relocs.append(reloc)
+
         return cinfo
 
     def name(self):
@@ -141,6 +201,12 @@ class CROInfo:
                 base = seg.base()
 
         return base
+    
+    def get_addr_for_patch(self, offset):
+        return self.segments()[offset & 0xF].base() + (offset >> 4)
+    
+    def relocs(self):
+        return self._relocs
 
 # Loader
 
@@ -156,6 +222,10 @@ def load_cro(f, cinfo):
         if seg.offset() != 0:
             seg_bytes = ctr_utility.read_bytes(f, seg.offset(), seg.data_size())
             ida_bytes.put_bytes(seg.base(), seg_bytes)
+
+    # Apply relocations.
+    for reloc in cinfo.relocs():
+        reloc.apply()
 
     return True
 

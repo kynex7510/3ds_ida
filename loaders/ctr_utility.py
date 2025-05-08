@@ -57,6 +57,9 @@ def read_bytes(f, off, size):
         raise Exception("Could not read bytes from file")
     return b
 
+def read_byte(f, off):
+    return read_bytes(f, off, 1)[0]
+
 def read_dword(f, off):
     return int.from_bytes(read_bytes(f, off, 4), 'little')
 
