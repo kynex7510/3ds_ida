@@ -18,7 +18,6 @@ import ida_lines
 SCRIPT_NAME = "ctr_loader.py"
 REPO_URL = "https://github.com/kynex7510/3ds_ida"
 
-PAGE_SIZE = 0x1000
 MEDIA_UNIT = 0x200
 MAX_EXEFS_ENTRIES = 10
 FIRM_MODULES = [
