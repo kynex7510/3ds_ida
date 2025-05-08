@@ -6,15 +6,21 @@ IDA Pro 9.0 resources for reverse engineering Nintendo 3DS binaries.
 
 [Python 3.6+](https://www.python.org/) is required.
 
-### Loader
+### Loaders
 
-Copy `loaders` in `{IDA_PATH}/loaders`.
+Copy the content of `loaders` under `{IDA_PATH}/loaders`.
+
+#### Main loader
 
 `ctr_loader.py` supports the following formats:
 
 - Raw: the binary must be named `code.bin`. An external exheader binary is required, else the user will be asked to provide any information.
 - ExeFS: the binary name must end with the `exefs` extension and must contain a `.code` file. An external exheader binary is required, else the user will be asked to provide any information.
 - CXI: the binary must be decrypted and it must contain an ExeFS with a `.code` file.
+
+#### CRO loader
+
+`ctr_cro_loader.py` supports the CRO (CTR Relocatable Object) format.
 
 ### Types
 
