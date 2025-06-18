@@ -499,3 +499,18 @@ struct FS_ProgramInfo {
   u8 mediaType;
   u8 _padding[7];
 };
+
+struct IPCStaticBuffer {
+  u32 descriptor;
+  void* p;
+};
+
+struct TLS {
+  /* 0x000 */ u32 userStorage[0x10];
+  /* 0x040 */ u32 exHandler;
+  /* 0x044 */ u32 exHandlerSPCtl;
+  /* 0x048 */ u32 exHandlerCtxCtl;
+  /* 0x04C */ u32 _reserved[0x0D];
+  /* 0x080 */ u32 commandBuffer[0x40];
+  /* 0x180 */ IPCStaticBuffer staticBuffers[0x10];
+};
