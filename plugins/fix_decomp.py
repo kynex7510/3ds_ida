@@ -36,7 +36,7 @@ class TLSHandler(ida_hexrays.udc_filter_t):
             op2 = cdg.insn.Op3.value
             if cp == 15 and op1 == 0 and crn == 13 and crm == 0 and op2 == 3:
                 self.init(
-                    f"void* __usercall getThreadLocalStorage@<r{rd}>(void);")
+                    f"TLS* __usercall getThreadLocalStorage@<r{rd}>(void);")
                 return True
 
         return False

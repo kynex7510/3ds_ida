@@ -73,7 +73,7 @@ INSERT INTO syscalls (id, name, signature) VALUES
 (0x52, 'InvalidateProcessDataCache', 'Result __usercall svcInvalidateProcessDataCache@<r0>(Handle process@<r0>, u32 addr@<r1>, u32 size@<r2>);'),
 (0x53, 'StoreProcessDataCache', 'Result __usercall svcStoreProcessDataCache@<r0>(Handle process@<r0>, u32 addr@<r1>, u32 size@<r2>);'),
 (0x54, 'FlushProcessDataCache', 'Result __usercall svcFlushProcessDataCache@<r0>(Handle process@<r0>, u32 addr@<r1>, u32 size@<r2>);'),
-(0x55, 'StartInterProcessDma', 'SvcResultHandle __usercall svcStartInterProcessDma@<r0, r1>(u32 srcAddr@<r0>, Handle dstProcess@<r1>, u32 dstAddr@<r2>, Handle srcProcess@<r3>, u32 size@<r4>, const DmaConfig *cfg@<r5>);'),
+(0x55, 'StartInterProcessDma', 'SvcResultHandle __usercall svcStartInterProcessDma@<r0, r1>(u32 srcAddr@<r0>, Handle dstProcess@<r1>, u32 dstAddr@<r2>, Handle srcProcess@<r3>, u32 size@<r4>, const DmaConfig* cfg@<r5>);'),
 (0x56, 'StopDma', 'Result __usercall svcStopDma@<r0>(Handle dma@<r0>);'),
 (0x57, 'GetDmaState', 'SvcResult8 __usercall svcGetDmaState@<r0, r1>(Handle dma@<r1>);'),
 (0x58, 'RestartDma', 'Result __usercall svcRestartDma@<r0>(Handle dma@<r0>, u32 dstAddr@<r1>, u32 srcAddr@<r2>, u32 size@<r3>, s8 flags@<r4>);'),
@@ -104,4 +104,22 @@ INSERT INTO syscalls (id, name, signature) VALUES
 (0x79, 'SetResourceLimitValues', 'Result __usercall svcSetResourceLimitValues@<r0>(Handle resourceLimit@<r0>, const ResourceLimitType* names@<r1>, const s64* values@<r2>, s32 nameCount@<r3>);'),
 (0x7B, 'Backdoor', 'Result __usercall svcBackdoor@<r0>(s32 (*callback)(void)@<r0>);'),
 (0x7C, 'KernelSetState', 'Result __usercall svcKernelSetState@<r0>(u32 type@<r0>, ...);'),
-(0x7D, 'QueryProcessMemory', 'SvcResultQueryMemory __usercall svcQueryProcessMemory@<r0, r1, r2, r3, r4, r5>(Handle process@<r2>, u32 addr@<r3>);');
+(0x7D, 'QueryProcessMemory', 'SvcResultQueryMemory __usercall svcQueryProcessMemory@<r0, r1, r2, r3, r4, r5>(Handle process@<r2>, u32 addr@<r3>);'),
+(0xFF, 'StopPoint', 'void svcStopPoint(void);'),
+
+/* Luma extensions (mostly untested) */
+
+(0x80, 'CustomBackdoor', 'void __usercall svcCustomBackdoor(const void* addr@<r0>, u32 arg0@<r1>, u32 arg1@<r2>, u32 arg2@<r3>);'),
+(0x90, 'ConvertVAToPA', 'u32 __usercall svcConvertVAToPA@<r0>(const void* addr@<r0>, bool writeCheck@<r1>);'),
+(0x91, 'FlushDataCacheRange', 'void __usercall svcFlushDataCacheRange(const void* addr@<r0>, u32 size@<r1>);'),
+(0x92, 'FlushEntireDataCache', 'void svcFlushEntireDataCache(void);'),
+(0x93, 'InvalidateInstructionCacheRange', 'void __usercall svcInvalidateInstructionCacheRange(const void* addr@<r0>, u32 size@<r1>);'),
+(0x94, 'InvalidateEntireInstructionCache', 'void svcInvalidateEntireInstructionCache(void);'),
+(0xA0, 'MapProcessMemoryEx', 'Result __usercall svcMapProcessMemoryEx@<r0>(Handle dstProcessHandle@<r6>, u32 vaDst@<r1>, Handle srcProcessHandle@<r2>, u32 vaSrc@<r3>, u32 size@<r4>, MapExFlags flags@<r5>, u32 magic@<r0>);'),
+(0xA1, 'UnmapProcessMemoryEx', 'Result __usercall svcUnmapProcessMemoryEx@<r0>(Handle proc@<r0>, u32 addr@<r1>, u32 size@<r2>);'),
+(0xA2, 'ControlMemoryEx', 'SvcResult32 __usercall svcControlMemoryEx@<r0, r1>(u32 addr0@<r1>, u32 addr1@<r2>, u32 size@<r3>, MemOp op@<r0>, MemPerm perm@<r4>, bool isLoader@<r5>);'),
+(0xA3, 'ControlMemoryUnsafe', 'Result __usercall svcControlMemoryUnsafe@<r0, r1>(u32* out@<r0>, u32 addr0@<r1>, u32 size@<r2>, MemOp op@<r3>, MemPerm perm@<r4>);'),
+(0xB0, 'ControlService', 'Result __usercall svcControlService@<r0>(ServiceOp op@<r0>, u32 varg1@<r1>, u32 varg2@<r2>);'),
+(0xB1, 'CopyHandle', 'SvcResultHandle __usercall svcCopyHandle@<r0, r1>(Handle outProcessHandle@<r1>, Handle inHandle@<r2>, Handle inProcessHandle@<r3>);'),
+(0xB2, 'TranslateHandle', 'SvcResult32 __usercall svcTranslateHandle@<r0, r1>(char *outClassName@<r1>, Handle handle@<r2>);'),
+(0xB3, 'ControlProcess', 'Result __usercall svcControlProcess@<r0>(Handle process@<r0>, ProcessOp op@<r1>, u32 varg2@<r2>, u32 varg3@<r3>);');
