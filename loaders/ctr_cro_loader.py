@@ -99,7 +99,7 @@ class Relocation:
         fixup.off = self._addend
         ida_fixup.set_fixup(self._target, fixup)
         
-        print(f"FIXUP @ {hex(self._target)}, TYPE: {self._type}, ADDEND: {self._addend}")
+        #print(f"FIXUP @ {hex(self._target)}, TYPE: {self._type}, ADDEND: {self._addend}")
 
         return
 
@@ -109,6 +109,8 @@ class CROInfo:
         self._module_name = "(UNKNOWN)"
         self._segments = []
         self._relocs = []
+        self._named_exports = []
+        self._indexed_exports = []
         return
 
     @staticmethod
@@ -178,10 +180,35 @@ class CROInfo:
             base_index = ctr_utility.read_byte(f, reloctable_offset + (0xC * i) + 5)
             addend = ctr_utility.read_dword(f, reloctable_offset + (0xC * i) + 8)
 
-            target = cinfo.get_addr_for_patch(offset)
-            base = cinfo.get_addr_for_patch(base_index)
+            target = cinfo.translate_segment_offset(offset)
+            base = cinfo.translate_segment_offset(base_index)
             reloc = Relocation(target, type, base, addend)
             cinfo._relocs.append(reloc)
+
+        # Load named exports.
+        named_exptbl_offset = ctr_utility.read_dword(f, 0xD0)
+        num_named_exports = ctr_utility.read_dword(f, 0xD4)
+        expstr_base = ctr_utility.read_dword(f, 0xE0)
+        expstr_size = ctr_utility.read_dword(f, 0xE4)
+
+        for i in range(num_named_exports):
+            name_offset = ctr_utility.read_dword(f, named_exptbl_offset + (0x8 * i))
+            segment_offset = ctr_utility.read_dword(f, named_exptbl_offset + (0x8 * i) + 4)
+
+            max_sym_size = expstr_size - (name_offset - expstr_base)
+            sym_name = ctr_utility.read_cstring(f, name_offset, max_sym_size)
+            export_addr = cinfo.translate_segment_offset(segment_offset)
+
+            cinfo._named_exports.append((export_addr, sym_name))
+
+        # Load indexed exports.
+        indexed_exptbl_offset = ctr_utility.read_dword(f, 0xD8)
+        num_indexed_exports = ctr_utility.read_dword(f, 0xDC)
+
+        for i in range(num_indexed_exports):
+            segment_offset = ctr_utility.read_dword(f, indexed_exptbl_offset + (0x4 * i))
+            export_addr = cinfo.translate_segment_offset(segment_offset)
+            cinfo._indexed_exports.append(export_addr)
 
         return cinfo
 
@@ -202,11 +229,17 @@ class CROInfo:
 
         return base
     
-    def get_addr_for_patch(self, offset):
+    def translate_segment_offset(self, offset):
         return self.segments()[offset & 0xF].base() + (offset >> 4)
     
     def relocs(self):
         return self._relocs
+    
+    def named_exports(self):
+        return self._named_exports
+    
+    def indexed_exports(self):
+        return self._indexed_exports
 
 # Loader
 
@@ -226,6 +259,15 @@ def load_cro(f, cinfo):
     # Apply relocations.
     for reloc in cinfo.relocs():
         reloc.apply()
+
+    # Apply exports.
+    for (export_addr, export_sym) in cinfo.named_exports():
+        ctr_utility.add_named_export(export_addr, export_sym)
+
+    export_index = 0
+    for export_addr in cinfo.indexed_exports():
+        ctr_utility.add_indexed_export(export_addr, export_index)
+        export_index += 1
 
     return True
 

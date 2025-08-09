@@ -9,6 +9,7 @@ from pathlib import Path
 import ida_segment
 import ida_kernwin
 import ida_loader
+import ida_entry
 
 # Helpers
 
@@ -99,6 +100,12 @@ def add_segment(start, size, name, perms) -> None:
     seg = ida_segment.get_segm_by_name(name)
     ida_segment.set_segm_addressing(seg, 1)
     seg.perm = perms
+
+def add_named_export(addr, sym) -> None:
+    ida_entry.add_entry(addr, addr, sym, True)
+
+def add_indexed_export(addr, index) -> None:
+    ida_entry.add_entry(index, addr, None, True)
 
 # FileFormat
 

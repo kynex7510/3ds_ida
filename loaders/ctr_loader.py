@@ -175,7 +175,7 @@ def setup_sections(cinfo, code_bin_data):
         ctr_utility.add_segment(cinfo.bss_base(), cinfo.bss_size(), ".bss", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_WRITE)
 
     # Set entrypoint.
-    ida_entry.add_entry(cinfo.text_base(), cinfo.text_base(), "start", True)
+    ctr_utility.add_named_export(cinfo.text_base(), "start")
 
 def extract_code_bin(exefs_bytes):
     for i in range(MAX_EXEFS_ENTRIES):

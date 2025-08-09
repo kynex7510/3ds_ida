@@ -1,4 +1,3 @@
 __pycache__
 .vscode
 .env
-/plugins/load_crs_syms.py
