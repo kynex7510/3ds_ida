@@ -101,11 +101,15 @@ def add_segment(start, size, name, perms) -> None:
     ida_segment.set_segm_addressing(seg, 1)
     seg.perm = perms
 
-def add_named_export(addr, sym) -> None:
-    ida_entry.add_entry(addr, addr, sym, True)
+def add_named_export(addr, sym, is_code) -> None:
+    if is_code:
+        addr = addr & 0xFFFFFFFE
+    ida_entry.add_entry(addr, addr, sym, is_code)
 
-def add_indexed_export(addr, index) -> None:
-    ida_entry.add_entry(index, addr, None, True)
+def add_indexed_export(addr, index, is_code) -> None:
+    if is_code:
+        addr = addr & 0xFFFFFFFE
+    ida_entry.add_entry(index, addr, None, is_code)
 
 # FileFormat
 

@@ -199,7 +199,7 @@ class CROInfo:
             sym_name = ctr_utility.read_cstring(f, name_offset, max_sym_size)
             export_addr = cinfo.translate_segment_offset(segment_offset)
 
-            cinfo._named_exports.append((export_addr, sym_name))
+            cinfo._named_exports.append((export_addr, sym_name, cinfo.is_in_text_segment(segment_offset)))
 
         # Load indexed exports.
         indexed_exptbl_offset = ctr_utility.read_dword(f, 0xD8)
@@ -208,7 +208,7 @@ class CROInfo:
         for i in range(num_indexed_exports):
             segment_offset = ctr_utility.read_dword(f, indexed_exptbl_offset + (0x4 * i))
             export_addr = cinfo.translate_segment_offset(segment_offset)
-            cinfo._indexed_exports.append(export_addr)
+            cinfo._indexed_exports.append((export_addr, cinfo.is_in_text_segment(segment_offset)))
 
         return cinfo
 
@@ -231,6 +231,9 @@ class CROInfo:
     
     def translate_segment_offset(self, offset):
         return self.segments()[offset & 0xF].base() + (offset >> 4)
+    
+    def is_in_text_segment(self, offset):
+        return self.segments()[offset & 0xF].id() == SEGMENT_TEXT
     
     def relocs(self):
         return self._relocs
@@ -260,13 +263,13 @@ def load_cro(f, cinfo):
     for reloc in cinfo.relocs():
         reloc.apply()
 
-    # Apply exports.
-    for (export_addr, export_sym) in cinfo.named_exports():
-        ctr_utility.add_named_export(export_addr, export_sym)
+    # Add exports.
+    for (export_addr, export_sym, is_code) in cinfo.named_exports():
+        ctr_utility.add_named_export(export_addr, export_sym, is_code)
 
     export_index = 0
-    for export_addr in cinfo.indexed_exports():
-        ctr_utility.add_indexed_export(export_addr, export_index)
+    for (export_addr, is_code) in cinfo.indexed_exports():
+        ctr_utility.add_indexed_export(export_addr, export_index, is_code)
         export_index += 1
 
     return True
