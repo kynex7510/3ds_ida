@@ -20,7 +20,7 @@ Copy the content of `loaders` under `{IDA_PATH}/loaders`.
 
 #### CRO loader
 
-`ctr_cro_loader.py` supports the CRO (CTR Relocatable Object) format.
+`ctr_cro_loader.py` supports the CRO (CTR Relocatable Object) format. Compressed CROs ending in `*.cro.lex` can be decompressed with the `unlex.py` script.
 
 ### Types
 
