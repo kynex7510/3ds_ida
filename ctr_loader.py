@@ -79,6 +79,10 @@ def read_bytes(f, off, size):
     return b
 
 
+def read_hword(f, off):
+    return int.from_bytes(read_bytes(f, off, 2), 'little')
+
+
 def read_dword(f, off):
     return int.from_bytes(read_bytes(f, off, 4), 'little')
 
@@ -125,10 +129,13 @@ class CodeInfo:
         self._name = "(UNKNOWN)"
         self._title_id = "(UNKNOWN)"
         self._code_compressed = False
+        self._text_offset = 0
         self._text_base = 0
         self._text_size = 0
+        self._rodata_offset = 0
         self._rodata_base = 0
         self._rodata_size = 0
+        self._data_offset = 0
         self._data_base = 0
         self._data_size = 0
         self._bss_size = 0
@@ -145,10 +152,26 @@ class CodeInfo:
         # Load section info.
         cinfo._text_base = read_dword(f, off + 0x10)
         cinfo._text_size = read_dword(f, off + 0x18)
+        cinfo._text_offset = 0
+
         cinfo._rodata_base = read_dword(f, off + 0x20)
         cinfo._rodata_size = read_dword(f, off + 0x28)
+
+        # If this is a firm module, the next section starts right after.
+        if (cinfo.is_firm_module()):
+            cinfo._rodata_offset = cinfo._text_offset + cinfo._text_size
+        else:
+            # Otherwise, the next section starts aligned.
+            cinfo._rodata_offset = cinfo._rodata_base - cinfo._text_base
+        
         cinfo._data_base = read_dword(f, off + 0x30)
         cinfo._data_size = read_dword(f, off + 0x38)
+
+        if (cinfo.is_firm_module()):
+            cinfo._data_offset = cinfo._rodata_offset + cinfo._rodata_size
+        else:
+            cinfo._data_offset = cinfo._data_base - cinfo._text_base
+
         cinfo._bss_size = read_dword(f, off + 0x3C)
 
         return cinfo
@@ -164,6 +187,38 @@ class CodeInfo:
         cinfo._data_base = ida_kernwin.ask_addr(0, "Enter the base address for the .data section:")
         cinfo._data_size = ida_kernwin.ask_long(0x1000 if cinfo._data_base else 0, "Enter the size for the .data section:")
         cinfo._bss_size = ida_kernwin.ask_long(0x1000, "Enter the size for the .bss section:")
+        return cinfo
+
+    @staticmethod
+    def load_from_3dsx(f):
+        cinfo = CodeInfo()
+
+        # We don't have title info, so fake it.
+        cinfo._name = "HOMEBREW"
+        cinfo._title_id = "CAFEBABEDEADBEEF"
+        cinfo._code_compressed = False
+
+        # .text base is at header + exheader + code reloc header + rodata reloc header + data reloc header.
+        # .rodata, .data are after .text.
+        header_size = read_hword(f, 0x04)
+        reloc_header_size = read_hword(f, 0x06)
+
+        # Load section info.
+        cinfo._text_offset = header_size + (3 * reloc_header_size)
+        cinfo._text_size = read_dword(f, 0x10)
+        cinfo._text_base = 0x100000
+
+        cinfo._rodata_offset = cinfo._text_offset + cinfo._text_size
+        cinfo._rodata_size = read_dword(f, 0x14)
+        cinfo._rodata_base = (cinfo._text_base + cinfo._text_size + 0xFFF) & 0xFFFFF000
+
+        cinfo._data_offset = cinfo._rodata_offset + cinfo._rodata_size
+        cinfo._data_size = read_dword(f, 0x18) # Includes .bss size.
+        cinfo._data_base = (cinfo._rodata_base + cinfo._rodata_size + 0xFFF) & 0xFFFFF000
+
+        cinfo._bss_size = read_dword(f, 0x1C)
+        cinfo._data_size -= cinfo._bss_size
+
         return cinfo
 
     def get_name(self):
@@ -189,7 +244,7 @@ class CodeInfo:
         return self._text_size
     
     def get_text_offset(self):
-        return 0
+        return self._text_offset
 
     def get_rodata_base(self):
         return self._rodata_base
@@ -198,10 +253,7 @@ class CodeInfo:
         return self._rodata_size
     
     def get_rodata_offset(self):
-        if (self.is_firm_module()):
-            return self.get_text_offset() + self.get_text_size()
-        
-        return self.get_rodata_base() - self.get_text_base()
+        return self._rodata_offset
 
     def has_rodata(self):
         return self._rodata_base and self._rodata_size
@@ -213,10 +265,7 @@ class CodeInfo:
         return self._data_size
     
     def get_data_offset(self):
-        if (self.is_firm_module()):
-            return self.get_rodata_offset() + self.get_rodata_size()
-
-        return self.get_data_base() - self.get_text_base()
+        return self._data_offset
 
     def has_data(self):
         return self._data_base and self._data_size
@@ -249,7 +298,7 @@ class FileFormat(enum.Enum):
     Raw = 0
     ExeFS = 1
     CXI = 2
-    CIA = 3
+    TDSX = 3
 
     @staticmethod
     def get_from_file(f):
@@ -263,6 +312,13 @@ class FileFormat(enum.Enum):
                     ida_kernwin.warning("Encrypted CXI file detected. Please decrypt it before loading it.")
                 else:
                     return FileFormat.CXI
+        except:
+            pass
+
+        try:
+            tdsx_magic = read_string(f, 0x0, 4)
+            if tdsx_magic == "3DSX":
+                return FileFormat.TDSX
         except:
             pass
 
@@ -326,6 +382,10 @@ def load_code_info(f, format):
         else:
             return CodeInfo.load_from_input()
 
+    # 3DSX: load from header.
+    if format == FileFormat.TDSX:
+        return CodeInfo.load_from_3dsx(f)
+
     # Unreachable.
     raise Exception("Invalid format")
 
@@ -354,6 +414,10 @@ def load_code(f, format, cinfo):
     if format == FileFormat.Raw:
         f.seek(0, 2)
         code_bin_data = read_bytes(f, 0, f.tell())
+
+    # TDSX: load from file, up to the required size.
+    if format == FileFormat.TDSX:
+        code_bin_data = read_bytes(f, 0, cinfo.get_data_offset() + cinfo.get_data_size())
 
     # Decompress if needed.
     if cinfo.is_code_compressed():
