@@ -129,6 +129,9 @@ class CodeInfo:
         self._name = "(UNKNOWN)"
         self._title_id = "(UNKNOWN)"
         self._code_compressed = False
+        self._header_offset = 0
+        self._header_base = 0
+        self._header_size = 0
         self._text_offset = 0
         self._text_base = 0
         self._text_size = 0
@@ -139,6 +142,7 @@ class CodeInfo:
         self._data_base = 0
         self._data_size = 0
         self._bss_size = 0
+        self._symbols = {}
 
     @staticmethod
     def load_from_file(f, off):
@@ -194,8 +198,8 @@ class CodeInfo:
         cinfo = CodeInfo()
 
         # We don't have title info, so fake it.
-        cinfo._name = "HOMEBREW"
-        cinfo._title_id = "CAFEBABEDEADBEEF"
+        cinfo._name = "Homebrew"
+        cinfo._title_id = "0000000000000000"
         cinfo._code_compressed = False
 
         # .text base is at header + exheader + code reloc header + rodata reloc header + data reloc header.
@@ -221,6 +225,50 @@ class CodeInfo:
 
         return cinfo
 
+    @staticmethod
+    def load_from_tgx(f):
+        cinfo = CodeInfo()
+
+        # We don't have title info, so fake it.
+        cinfo._name = "Plugin"
+        cinfo._title_id = "0000000000000000"
+        cinfo._code_compressed = False
+
+        # Segment data is at magic (0x8) + version (0x4) + reserved (0x4) + info (0x48)
+        exec_offset = 0x8 + 0x4 + 0x4 + 0x48
+
+        # Load section info.
+        cinfo._header_offset = 0
+        cinfo._text_offset = read_dword(f, exec_offset)
+        cinfo._rodata_offset = read_dword(f, exec_offset + 0x4)
+        cinfo._data_offset = read_dword(f, exec_offset + 0x8)
+
+        cinfo._header_size = cinfo._text_offset # Assume code is right after header.
+        cinfo._text_size = read_dword(f, exec_offset + 0xC)
+        cinfo._rodata_size = read_dword(f, exec_offset + 0x10)
+        cinfo._data_size = read_dword(f, exec_offset + 0x14)
+        cinfo._bss_size = read_dword(f, exec_offset + 0x18)
+
+        cinfo._header_base = 0x7000000
+        cinfo._text_base =  cinfo._header_base + cinfo._text_offset
+        cinfo._rodata_base = cinfo._header_base + cinfo._rodata_offset
+        cinfo._data_base = cinfo._header_base + cinfo._data_offset
+
+        # Load function info.
+        exe_load_func_offset = read_dword(f, exec_offset + 0x1C)
+        if exe_load_func_offset:
+            cinfo._symbols[cinfo._header_base + exe_load_func_offset] = "loadExeFunc"
+
+        swap_save_func_offset = read_dword(f, exec_offset + 0x20)
+        if swap_save_func_offset:
+            cinfo._symbols[cinfo._header_base + swap_save_func_offset] = "swapSaveFunc"
+
+        swap_load_func_offset = read_dword(f, exec_offset + 0x24)
+        if swap_load_func_offset:
+            cinfo._symbols[cinfo._header_base + swap_load_func_offset] = "swapLoadFunc"
+
+        return cinfo
+
     def get_name(self):
         return self._name
 
@@ -237,35 +285,50 @@ class CodeInfo:
         low = int(self._title_id[8:], base=16) & 0xFFFFFFFE # Clear SAFE_MODE bit.
         return True if low in FIRM_MODULES else False
 
+    def get_header_offset(self):
+        return self._header_offset
+
+    def get_header_base(self):
+        return self._header_base
+
+    def get_header_size(self):
+        return self._header_size
+
+    def has_header(self):
+        return self._header_base and self._header_size
+
+    def get_text_offset(self):
+        return self._text_offset
+
     def get_text_base(self):
         return self._text_base
 
     def get_text_size(self):
         return self._text_size
-    
-    def get_text_offset(self):
-        return self._text_offset
+
+    def has_text(self):
+        return self._text_base and self._text_size
+
+    def get_rodata_offset(self):
+        return self._rodata_offset
 
     def get_rodata_base(self):
         return self._rodata_base
 
     def get_rodata_size(self):
         return self._rodata_size
-    
-    def get_rodata_offset(self):
-        return self._rodata_offset
 
     def has_rodata(self):
         return self._rodata_base and self._rodata_size
+
+    def get_data_offset(self):
+        return self._data_offset
 
     def get_data_base(self):
         return self._data_base
 
     def get_data_size(self):
         return self._data_size
-    
-    def get_data_offset(self):
-        return self._data_offset
 
     def has_data(self):
         return self._data_base and self._data_size
@@ -292,6 +355,9 @@ class CodeInfo:
     def has_bss(self):
         return self._bss_size
 
+    def symbols(self):
+        return self._symbols
+
 # FileFormat
 
 class FileFormat(enum.Enum):
@@ -299,6 +365,7 @@ class FileFormat(enum.Enum):
     ExeFS = 1
     CXI = 2
     TDSX = 3
+    TGX = 4
 
     @staticmethod
     def get_from_file(f):
@@ -319,6 +386,13 @@ class FileFormat(enum.Enum):
             tdsx_magic = read_string(f, 0x0, 4)
             if tdsx_magic == "3DSX":
                 return FileFormat.TDSX
+        except:
+            pass
+
+        try:
+            tgx_magic = read_string(f, 0x0, 8)
+            if tgx_magic == "3GX$0002":
+                return FileFormat.TGX
         except:
             pass
 
@@ -347,9 +421,15 @@ class FileFormat(enum.Enum):
 
 def setup_sections(cinfo, code_bin_data):
     # Add sections.
-    add_segment(cinfo.get_text_base(), cinfo.get_text_size(), ".text", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_EXEC)
-    code_bytes = code_bin_data[cinfo.get_text_offset():cinfo.get_text_offset() + cinfo.get_text_size()]
-    ida_bytes.put_bytes(cinfo.get_text_base(), code_bytes)
+    if cinfo.has_header():
+        add_segment(cinfo.get_header_base(), cinfo.get_header_size(), ".header", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_EXEC)
+        header_bytes = code_bin_data[cinfo.get_header_offset():cinfo.get_header_offset() + cinfo.get_header_size()]
+        ida_bytes.put_bytes(cinfo.get_header_base(), header_bytes)
+
+    if cinfo.has_text():
+        add_segment(cinfo.get_text_base(), cinfo.get_text_size(), ".text", ida_segment.SEGPERM_READ | ida_segment.SEGPERM_EXEC)
+        code_bytes = code_bin_data[cinfo.get_text_offset():cinfo.get_text_offset() + cinfo.get_text_size()]
+        ida_bytes.put_bytes(cinfo.get_text_base(), code_bytes)
 
     if cinfo.has_rodata():
         add_segment(cinfo.get_rodata_base(), cinfo.get_rodata_size(), ".rodata", ida_segment.SEGPERM_READ)
@@ -366,6 +446,10 @@ def setup_sections(cinfo, code_bin_data):
 
     # Set entrypoint.
     ida_entry.add_entry(cinfo.get_text_base(), cinfo.get_text_base(), "start", True)
+
+    # Set additional symbols.
+    for addr in cinfo.symbols():
+        ida_entry.add_entry(addr, addr, cinfo.symbols()[addr], True)
 
 
 def load_code_info(f, format):
@@ -385,6 +469,10 @@ def load_code_info(f, format):
     # 3DSX: load from header.
     if format == FileFormat.TDSX:
         return CodeInfo.load_from_3dsx(f)
+
+    # 3GX: load from header.
+    if format == FileFormat.TGX:
+        return CodeInfo.load_from_tgx(f)
 
     # Unreachable.
     raise Exception("Invalid format")
@@ -415,8 +503,8 @@ def load_code(f, format, cinfo):
         f.seek(0, 2)
         code_bin_data = read_bytes(f, 0, f.tell())
 
-    # TDSX: load from file, up to the required size.
-    if format == FileFormat.TDSX:
+    # TDSX/TGX: load from file, up to the required size.
+    if format in [ FileFormat.TDSX, FileFormat.TGX ]:
         code_bin_data = read_bytes(f, 0, cinfo.get_data_offset() + cinfo.get_data_size())
 
     # Decompress if needed.
